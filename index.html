@@ -1048,11 +1048,11 @@ new Freezeframe({
      edge = Trail.hrule(1)
      return Trail.concat(
         edge.rotate_by((2 * i) / sides) for i in range(sides)
-     ).close().stroke().center_xy().scale(45).rotate_by(x[1]).translate(25 + x[2], 25 + x[3] ).fill_color(&quot;orange&quot;)
+     ).close().stroke().center_xy().scale(x[0]).rotate_by(x[1]).translate(x[2], x[3] ).fill_color(&quot;orange&quot;)
+random.seed(1)
 
-
-start_param = np.array([[15.,random.random(),  20 + i * 20, 20 + 20 * j] for i in range(1) for j in range(1)])
-g = np.array([[15., random.random(), 1 + i * 20, 1 + 20 * j] for i in range(1) for j in range(1)])
+start_param = np.array([[35.,random.random(),  40 + i * 20, 40 + 20 * j] for i in range(1) for j in range(1)])
+g = np.array([[35., random.random(), 40 + i * 20, 40 + 20 * j] for i in range(1) for j in range(1)])
 goal_shapes = star(g)
 goal = render_shapes(star(g))
  
@@ -1067,12 +1067,12 @@ opt(
 </code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.49.gif" id='ff49'>
+<img src="out.73.gif" id='ff73'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff49'  
+  selector: '#ff73'  
 });
 </script>
 <pre class="python"><code>@jax.vmap
