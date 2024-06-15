@@ -662,14 +662,14 @@ def render_line(splits, mask):
 
     # Set even-&gt;odd pixels as 1 and odd-&gt;even as 0.
     inout = np.where(loc, -1, 1)
-    scene = zero.at[ind].add(inout).at[0].set(0)
+    scene = zero.at[ind].add(inout)
 
     # Run a cumulative sum to fill in inside.
     scene = np.cumsum(scene, axis=-1)
 
     # Set boundaries based on where pixel fell inside.
-    scene = scene.at[ind].set(np.where(loc, 0, 1) - inout * (splits - split_int)).at[0].set(0)
-
+    scene = scene.at[ind].set(np.where(loc, 0, 1) - inout * (splits - split_int))
+    
     # If we didn&#39;t end on even, something went wrong.
     return np.where(mask.sum() % 2 == 0, scene, zero)
 
