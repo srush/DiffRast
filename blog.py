@@ -46,7 +46,7 @@ eps = 1e-3
 # * [Differentiable Vector Graphics Rasterization for Editing and Learning](https://cseweb.ucsd.edu/~tzli/diffvg/)
 # * [Efficient GPU Path Rendering Using Scanline Rasterization](http://kunzhou.net/zjugaps/pathrendering/GPUpathrendering.pdf)
 # * [Monoids: Theme and Variations](https://core.ac.uk/download/pdf/76383233.pdf)
-# * [Jax](https://jax.readthedocs.io/en/latest/pytrees.html)
+# * [Jax: High-Performance Array Computing](https://jax.readthedocs.io/en/latest/)
 #
 
 # %% [markdown]
@@ -103,7 +103,7 @@ new Freezeframe({selector: '#smiley', overlay:true});
 # * [Section 3: Tracing](section-3-tracing)
 # * [Section 4: Vector -> Image](section-4-vector---image)
 # * [Section 5: Differentiable Rasterization](section-5-differentiable-rasterization)
-
+#
 
 # %% tags=["remove_cell"]
 import imageio.v3 as imageio
@@ -263,7 +263,7 @@ line = arc_seg(V2(1, 1), 1e-3).stroke()
 
 # %% [markdown]
 # Translations have an identity scaling and use the last column for the offet. We show the transform on the right side.
-
+#
 
 # %%
 def translate(t: float):
@@ -278,7 +278,7 @@ animate(translate)
 # %% [markdown]
 # Scaling uses the diagonal.
 #
-
+#
 
 # %%
 def scale(t):
@@ -291,7 +291,7 @@ animate(scale)
 
 # %% [markdown]
 # Rotation uses the off-diagonal.
-
+#
 
 # %%
 def rotate(t):
@@ -301,12 +301,13 @@ def rotate(t):
 
 animate(rotate)
 
+
 # %% [markdown]
 # We overload the + operator to represent composition.
 # Here two lines are combined in a single image. The first
 # is rotated and the second is rotated in the opposite direction
 # using the inverse of the transform.
-
+#
 
 # %%
 def cat(t):
@@ -324,7 +325,7 @@ animate(cat)
 # Colors are also represented as vectors and can be combined.
 #
 # $$ \text{color} = \begin{bmatrix} r \\ g \\ b \end{bmatrix}$$
-
+#
 
 # %%
 def color_line(t):
@@ -346,7 +347,7 @@ animate(color_line)
 # Arcs are created by providing a vector offset and the bend height.
 # Here's what that does.
 #
-
+#
 
 # %%
 def arc(t):
@@ -364,7 +365,7 @@ animate(arc)
 # We store the radius of this circle, the start angle, and the offset.
 # Here is what these arcs look like by composing the arc and the
 # internal circle representation.
-
+#
 
 # %%
 def arc(t):
@@ -384,7 +385,7 @@ animate(arc, lw=False)
 # %% [markdown]
 # (Note chaining must be done before calling `stroke()` since `+` is
 # also used for composition.)
-
+#
 
 # %%
 def closed(t):
@@ -397,7 +398,7 @@ animate(closed)
 
 # %% [markdown]
 # We can put everything together to create a circle function.
-
+#
 
 # %%
 def circle_at(p, r):
@@ -437,7 +438,7 @@ animate(draw_circle)
 
 # %% [markdown]
 # (Note as well that we are using shortcut `scale_x` which creates and applies a scaling affine transform.)
-
+#
 
 # %%
 def draw(t):
@@ -455,7 +456,7 @@ animate(draw)
 # Jax transforms take a little longer to startup, but they automatically let us scale to
 # some very complex figures. Here we are creating 100 circles.
 #
-
+#
 
 # %%
 def draw(t):
@@ -543,7 +544,7 @@ def opt(x, fn, steps=100, verbose=False, save_every=1, rate=0.3, show=None):
         if verbose:
             print("Step:", j, score)
             Xs.append(x)
-    plt.plot(loss)
+    #plt.plot(loss)
     images = sorted(glob.glob("/tmp/test.*.png"))
     return animate_out(images)
 
@@ -578,7 +579,7 @@ opt(P2(0, 0), partial(find_point, P2(0.5, 0.5)), steps=100, rate=0.1)
 # In our example code we will use three forces. A spring along edges, repulsion between
 # all nodes, and a weak gravity towards the center of the graph.
 #
-
+#
 
 # %%
 @jax.jit
@@ -662,7 +663,7 @@ opt(matrix, partial(force_directed, edges=edges), steps=500)
 
 # %% [markdown]
 # This is more clear in an animation.
-
+#
 
 # %%
 def ray(t, shape, pt, v):
@@ -728,7 +729,7 @@ animate(partial(ray, shape=shape, pt=P2(0.2, 0.3), v=V2(1, -1)))
 # %% [markdown]
 # Here's an example that shows multiple intersections,
 # as well as use of complex affine transformations.
-
+#
 
 # %%
 def crescent():
@@ -790,7 +791,7 @@ animate(partial(trace, crescent()[1].stroke(), py=-0.2), lw=False)
 # jax using differentiable transformations, we can combine them with
 # our generic gradient optimizer. Here we set up a function that
 # given any shape and ray will compute and draw the trace.
-
+#
 
 # %%
 def draw_trace(d, pt, v):
@@ -819,7 +820,7 @@ draw_trace(crescent()[2].center_xy(), P2(1, 1), V2(-1, -1))[0]
 # Here search for the outer angle that leads to the largest trace.
 # this can just be done with the standard optimizer from the last
 # section.
-
+#
 
 # %%
 def trace_width(d, t):
@@ -857,7 +858,7 @@ opt(np.array(np.pi / 4.0), partial(trace_width, crescent()[2]), rate=0.05)
 # even simpler we will use an *even-odd* rule where we consider
 # all pixels after an *odd* intersection to be inside the path.
 #
-
+#
 
 # %%
 def scanline(t, shape):
@@ -1048,7 +1049,7 @@ plt.imshow(render_shape(blank, shape)[0])
 # %% [markdown]
 # We apply the same process for all the paths.
 #
-
+#
 
 # %%
 @jax.vmap
@@ -1065,7 +1066,7 @@ plt.imshow(render_shapes(make_shape(np.arange(5) / 5)))
 # %% [markdown]
 # And then just a check that we can render for all transforms.
 #
-
+#
 
 # %%
 @jax.jit
@@ -1088,7 +1089,7 @@ animate_out(sorted(glob.glob("/tmp/test.*.png")))
 # We need to specify a goal target image, and then render our
 # own guess. Here we start with a blue image and target an orange one.
 # We then optimize through the process to find the color.
-
+#
 
 # %%
 goal = render_shape(blank, shape)[0]
@@ -1182,7 +1183,7 @@ opt(to_color("blue"), lambda x: loss(make_shape(x)), rate=0.1)
 # %% [markdown]
 # Here's how to implement this in Jax.
 #
-
+#
 
 # %%
 @jax.custom_vjp
@@ -1221,7 +1222,7 @@ boundary.defvjp(f_fwd, f_bwd)
 # We then can apply it on top of our rendering function.
 # The idea is that this should not change the image in
 # any way, but it allows us to correct the derivative.
-
+#
 
 # %%
 @jax.jit
@@ -1241,6 +1242,7 @@ def boundary_shape(img, s):
 
 def boundaries(img, shapes):
     return jax.lax.scan(boundary_shape, img, shapes)[0]
+
 
 # %% [markdown]
 # So now we can try it out.
@@ -1297,7 +1299,7 @@ opt(
 # Here's a more complex example where we draw a blob shape and let it fill in.
 # In Jax you can vmap over any sort of tree structure.
 #
-
+#
 
 # %%
 @jax.vmap
@@ -1383,7 +1385,7 @@ opt(
 # %% [markdown]
 # We can also test out shapes the multiple in and out
 # parts likes a star.
-
+#
 
 # %%
 @jax.vmap
@@ -1532,5 +1534,5 @@ opt(
 # programs in a fully vectorized way. I hope I can convince you that 
 # while a little scary, this kind of programming is pretty powerful
 # and realistically accessible for a lot of different domains. 
-
+#
 # - Sasha
