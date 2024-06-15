@@ -26,6 +26,7 @@
 <body>
 <h1 id="a-tour-of-differentiable-rasterization">A Tour of Differentiable Rasterization</h1>
 <p>By <a href="https://x.com/srush_nlp">Sasha Rush</a></p>
+<p>Built with <a href="https://github.com/chalk-diagrams/">Chalk</a> developed by <a href="https://doneata.bitbucket.io/">Dan Oneață</a></p>
 <p>Inspired by</p>
 <ul>
 <li><a href="https://cseweb.ucsd.edu/~tzli/diffvg/">Differentiable Vector Graphics Rasterization for Editing and Learning</a></li>
@@ -662,13 +663,13 @@ def render_line(splits, mask):
 
     # Set even-&gt;odd pixels as 1 and odd-&gt;even as 0.
     inout = np.where(loc, -1, 1)
-    scene = zero.at[ind].add(inout)
+    scene = zero.at[ind].add(inout).at[0].set(0)
 
     # Run a cumulative sum to fill in inside.
     scene = np.cumsum(scene, axis=-1)
 
     # Set boundaries based on where pixel fell inside.
-    scene = scene.at[ind].set(np.where(loc, 0, 1) - inout * (splits - split_int))
+    scene = scene.at[ind].set(np.where(loc, 0, 1) - inout * (splits - split_int)).at[0].set(0)
 
     # If we didn&#39;t end on even, something went wrong.
     return np.where(mask.sum() % 2 == 0, scene, zero)
@@ -701,7 +702,7 @@ def kernel(offset):
 plt.plot(samples, kernel(0), &quot;o-&quot;)
 plt.plot(samples - 0.2, kernel(0.2), &quot;o-&quot;)
 plt.plot(samples + 0.5, kernel(0.2), &quot;o-&quot;)</code></pre>
-<pre><code>[&lt;matplotlib.lines.Line2D at 0x7bb672cd4f20&gt;]</code></pre>
+<pre><code>[&lt;matplotlib.lines.Line2D at 0x7bb668e7f860&gt;]</code></pre>
 <figure>
 <img src="fullblog_files/fullblog_100_1.png" alt="" /><figcaption>png</figcaption>
 </figure>
@@ -713,9 +714,8 @@ def convolve(line):
 
 plt.imshow(convolve(render_line(*shape.get_trace()(P2(0, np.arange(100)), V2(1, 0)))))
 None</code></pre>
-<pre><code>&lt;matplotlib.image.AxesImage at 0x7bb7484b3b00&gt;</code></pre>
 <figure>
-<img src="fullblog_files/fullblog_101_1.png" alt="" /><figcaption>png</figcaption>
+<img src="fullblog_files/fullblog_101_0.png" alt="" /><figcaption>png</figcaption>
 </figure>
 <p>Now let’s put everything together. There are three steps.</p>
 <ol type="1">
@@ -779,12 +779,12 @@ for t in range(T):
 animate_out(sorted(glob.glob(&quot;/tmp/test.*.png&quot;)))</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.23.gif" id='ff23'>
+<img src="out.74.gif" id='ff74'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff23'  
+  selector: '#ff74'  
 });
 </script>
 <pre><code>&lt;Figure size 640x480 with 0 Axes&gt;</code></pre>
@@ -801,12 +801,12 @@ def loss(x):
 opt(to_color(&quot;blue&quot;), lambda x: loss(make_shape(x)), rate=0.1)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.24.gif" id='ff24'>
+<img src="out.75.gif" id='ff75'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff24'  
+  selector: '#ff75'  
 });
 </script>
 <h2 id="section-5-differentiable-rasterization">Section 5: Differentiable Rasterization</h2>
@@ -827,12 +827,12 @@ def loss(x):
 opt(to_color(&quot;orange&quot;), lambda x: loss(make_shape(x)), rate=0.1)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.34.gif" id='ff34'>
+<img src="out.76.gif" id='ff76'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff34'  
+  selector: '#ff76'  
 });
 </script>
 <p>The problem is that we are never sending a derivative back through the <code>split</code> variable to the traces, i.e. <span class="math inline">\(\frac{d {\cal L}}{d \ \text{trace}}=0\)</span> That is because the only way split is used is as a discrete index into the array.</p>
@@ -942,12 +942,12 @@ opt(
 )</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.35.gif" id='ff35'>
+<img src="out.77.gif" id='ff77'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff35'  
+  selector: '#ff77'  
 });
 </script>
 <p>Here’s a more complex example where we draw a blob shape and let it fill in. In Jax you can vmap over any sort of tree structure.</p>
@@ -982,12 +982,12 @@ opt(
 )</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.47.gif" id='ff47'>
+<img src="out.78.gif" id='ff78'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff47'  
+  selector: '#ff78'  
 });
 </script>
 <p>In this example we create a bunch or red and blue circles and then try to fill them in.</p>
@@ -1033,12 +1033,12 @@ opt(
 )</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.48.gif" id='ff48'>
+<img src="out.79.gif" id='ff79'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff48'  
+  selector: '#ff79'  
 });
 </script>
 <p>We can also test out shapes the multiple in and out parts likes a star.</p>
@@ -1067,12 +1067,12 @@ opt(
 </code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.73.gif" id='ff73'>
+<img src="out.80.gif" id='ff80'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff73'  
+  selector: '#ff80'  
 });
 </script>
 <pre class="python"><code>@jax.vmap
@@ -1117,12 +1117,12 @@ opt(
 )</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.29.gif" id='ff29'>
+<img src="out.81.gif" id='ff81'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff29'  
+  selector: '#ff81'  
 });
 </script>
 <p>All this work brings us to our final goal, rendering an actual image. Here we take an image from the web and convert it to an array. Then we start with a bunch of ellipses (scale-transformed circles) and see how well they can do to approximate it. Results are pretty neat!</p>
@@ -1192,12 +1192,12 @@ opt(
 )</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.30.gif" id='ff30'>
+<img src="out.82.gif" id='ff82'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff30'  
+  selector: '#ff82'  
 });
 </script>
 <h2 id="conclusion">Conclusion</h2>
