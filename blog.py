@@ -46,8 +46,7 @@ eps = 1e-3
 # * [Differentiable Vector Graphics Rasterization for Editing and Learning](https://cseweb.ucsd.edu/~tzli/diffvg/)
 # * [Efficient GPU Path Rendering Using Scanline Rasterization](http://kunzhou.net/zjugaps/pathrendering/GPUpathrendering.pdf)
 # * [Monoids: Theme and Variations](https://core.ac.uk/download/pdf/76383233.pdf)
-# * [Jax: High-Performance Array Computing](https://jax.readthedocs.io/en/latest/)
-#
+# * [JAX: High-Performance Array Computing](https://jax.readthedocs.io/en/latest/)
 
 # %% [markdown]
 # Given a program that produces a vector representation of an image (think SVG), *rasterization* turns it into
@@ -91,12 +90,15 @@ new Freezeframe({selector: '#smiley', overlay:true});
 
 
 # %% [markdown]
-# While this method has applications in computer graphics, the goal of this blog is less about
-# graphics, in which I am a novice, and more about understanding differentiable programming.
-# If autodiff + GPUs is the future, then it is important to be able to write hard programs
-# in a differentiable style (beyond just the n'th Transformer).
+# The goal of this blog is not about computer graphics. Caveat: I know nothing about computer graphics. 
 #
-# The blog is in 5 parts. It is assumes knowledge of Jax/NumPy, but no background in graphics. We'll build everything up visually.
+# The goal of this blog is to learn about differentiable programming in realistic settings.
+# If autodiff + vectorization is the future, then it is important to be able to write hard programs
+# in a differentiable style (beyond just another boring Transformer).
+#
+# The blog is in 5 parts. It assumes no graphics knowledge, but does use a lot of Jax/NumPy tricks. The target audience is someone with a lot of ML experience who wants to branch out into some more complex uses of derivatives. 
+#
+# You can also just look at the cool pictures!
 #
 # * [Section 1: Transforms, Arcs, Paths](#section-1-transforms-arcs-paths)
 # * [Section 2: Jax x Graphics](#section-2-jax-x-graphics)
@@ -811,10 +813,6 @@ def draw_trace(d, pt, v):
     return out, p
 
 
-# %%
-draw_trace(crescent()[2].center_xy(), P2(1, 1), V2(-1, -1))[0]
-
-
 # %% [markdown]
 # Using this function, we can then optimize for trace properties.
 # Here search for the outer angle that leads to the largest trace.
@@ -997,9 +995,10 @@ def kernel(offset):
     kernel = kern - np.abs(off_samples)
     return np.maximum(0, kernel / (kern - np.abs(samples)).sum())
 
-
+# Allow us to offset the grid
 plt.plot(samples, kernel(0), "o-")
 plt.plot(samples - 0.2, kernel(0.2), "o-")
+plt.plot(samples + 0.5, kernel(0.2), "o-")
 
 
 # %%
@@ -1010,6 +1009,7 @@ def convolve(line):
 
 
 plt.imshow(convolve(render_line(*shape.get_trace()(P2(0, np.arange(100)), V2(1, 0)))))
+None
 
 # %% [markdown]
 # Now let's put everything together. There are three steps.
@@ -1023,8 +1023,6 @@ plt.imshow(convolve(render_line(*shape.get_trace()(P2(0, np.arange(100)), V2(1, 
 # %%
 directions = list(map(np.stack, [(V2(0, 1), V2(1, 0)), (V2(1, 0), V2(0, 1))]))
 
-
-# %%
 @jax.jit
 def render_shape(img, s):
     S = np.arange(SIZE)
@@ -1044,6 +1042,7 @@ def render_shape(img, s):
 
 
 plt.imshow(render_shape(blank, shape)[0])
+None
 
 
 # %% [markdown]
@@ -1061,6 +1060,7 @@ def render_shapes(shapes):
     return jax.lax.scan(render_shape, blank, shapes)[0]
 
 plt.imshow(render_shapes(make_shape(np.arange(5) / 5)))
+None
 
 
 # %% [markdown]
@@ -1108,12 +1108,13 @@ opt(to_color("blue"), lambda x: loss(make_shape(x)), rate=0.1)
 
 # %% [markdown]
 # Changing the color is neat, but unfortunately if the images didn't
-# line up exactly nothing really would have happened. The problem
+# line up exactly things go wrong. The problem
 # is that a key step in our rasterization has a derivative of zero.
 # Take a look at the `render_line` code and see if you can spot it.
 
 # %%
-goal = render_shape(blank, shape.translate(5, 5))[0]
+new_shape = shape.translate(15, 35)
+goal = render_shape(blank, new_shape)[0]
 
 
 def make_shape(color):
@@ -1122,10 +1123,10 @@ def make_shape(color):
 
 def loss(x):
     y = render_shape(blank, x)[0]
-    return np.pow(y - goal, 2).sum(), ((hgrid + x) | (hgrid + shape)).layout(500)
+    return np.pow(y - goal, 2).sum(), ((hgrid + x) | (hgrid + new_shape)).layout(500)
 
 
-opt(to_color("blue"), lambda x: loss(make_shape(x)), rate=0.1)
+opt(to_color("orange"), lambda x: loss(make_shape(x)), rate=0.1)
 
 
 # %% [markdown]
@@ -1173,7 +1174,7 @@ opt(to_color("blue"), lambda x: loss(make_shape(x)), rate=0.1)
 # form.
 
 # %% [markdown]
-# $$f(x-\text{split}) k(\text{split}) \approx (f(x-\text{split} + \eps) - f(x-\text{split} - \eps))k(\text{split})$$
+# $$f(x-\text{split}) k(\text{split}) \approx (f(x-\text{split} + \epsilon) - f(x-\text{split} - \epsilon))k(\text{split})$$
 
 # %% [markdown]
 # Where the approximation is necessary because by definition $f(x - \text{split})$ falls on a boundary point.
@@ -1213,8 +1214,6 @@ def f_bwd(res, g):
     r = jax.vmap(grad_p, in_axes=(-1, -1))(split_int, splits) * mask
     return g, -r, None
 
-
-# %%
 boundary.defvjp(f_fwd, f_bwd)
 
 
@@ -1358,11 +1357,11 @@ make_shape3 = partial(make_shape3, i=np.arange(10.0))
 
 goal_param = (
     np.array([10 + random.random() for i in range(10)]),
-    np.array([20 + random.random() * 40 for i in range(20)]).reshape(10, 2),
+    np.array([20 + random.random() * 50 for i in range(20)]).reshape(10, 2),
 )
 goal_shapes = make_shape3(goal_param)
 
-make_shape3 = partial(make_shape3, i=np.arange(20.0))
+make_shape3 = partial(make_shape3, i=np.arange(20))
 
 goal = render_shapes(goal_shapes)
 start_param = (
@@ -1378,14 +1377,35 @@ opt(
     save_every=5,
     rate=0.1,
 )
-# %%
-
-# %%
-
 # %% [markdown]
 # We can also test out shapes the multiple in and out
 # parts likes a star.
 #
+
+ # %%
+ @jax.vmap
+ def star(x):
+     sides = 5
+     edge = Trail.hrule(1)
+     return Trail.concat(
+        edge.rotate_by((2 * i) / sides) for i in range(sides)
+     ).close().stroke().center_xy().scale(45).rotate_by(x[1]).translate(25 + x[2], 25 + x[3] ).fill_color("orange")
+
+
+start_param = np.array([[15.,random.random(),  20 + i * 20, 20 + 20 * j] for i in range(1) for j in range(1)])
+g = np.array([[15., random.random(), 1 + i * 20, 1 + 20 * j] for i in range(1) for j in range(1)])
+goal_shapes = star(g)
+goal = render_shapes(star(g))
+ 
+opt(
+    start_param,
+    lambda x: loss(goal, goal_shapes, star(x)),
+    steps=500,
+    save_every=10,
+    rate=0.1,
+    verbose=False,
+)
+
 
 # %%
 @jax.vmap
@@ -1522,17 +1542,20 @@ opt(
 # %% [markdown]
 # ## Conclusion
 #
-# Graphics is a particularly nice area for this kind of nonsense. 
+# So the goal of this post was to understand what differentiable programming 
+# really look like for challening problems. Of course graphics is a particularly 
+# nice area for this kind of silliness. 
 # Since everything has a nice and well-defined mathematical form,
 # with enough work we can push through the necessary gradients.
 # We only really had to use one major trick to make derivative 
-# work, other wise it was just converting `if`s and `for`s to 
-# `np.where` and `vmap`.
+# work, other wise it was just converting if's and for's to 
+# np.where and vmap.
 #
 # Still I think this sort of method is still really underexplored 
 # in other areas. We have really nice tools for writing very complex
-# programs in a fully vectorized way. I hope I can convince you that 
+# programs in a fully vectorized way, and yet we aren't really doing it 
+# yet as much as feels possible. I hope I can convince you that 
 # while a little scary, this kind of programming is pretty powerful
 # and realistically accessible for a lot of different domains. 
 #
-# - Sasha
+# -Sasha
