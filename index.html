@@ -557,21 +557,6 @@ new Freezeframe({
 });
 </script>
 <p>Now here’s the cool part. Because all of these traces are computed with jax using differentiable transformations, we can combine them with our generic gradient optimizer. Here we set up a function that given any shape and ray will compute and draw the trace.</p>
-<pre class="python"><code>def draw_trace(d, pt, v):
-    # Trace the image
-    trace = d.get_trace()
-    p, m = trace(pt, v)
-
-    # Draw the raw and trace.
-    line = seg(V2(0, -1 / 2)).stroke()
-    out = d + seg(v).stroke().translate_by(pt) + circle_at(pt, 0.1).fill_color(&quot;white&quot;)
-    pos = (1 - m[:, :])[..., None, None] * 100 + p[..., None, None] * v + pt
-    out = out + Path.from_points([pos[:, 0], pos[:, 1] + eps]).stroke().line_color(
-        &quot;white&quot;
-    ).line_width(10)
-    for i in range(2):
-        out = out + circle_at(pos[:, i], 0.1).fill_color(&quot;red&quot;)
-    return out, p</code></pre>
 <p>Using this function, we can then optimize for trace properties. Here search for the outer angle that leads to the largest trace. this can just be done with the standard optimizer from the last section.</p>
 <pre class="python"><code>def trace_width(d, t):
     d = d.center_xy()
@@ -678,7 +663,7 @@ shape = crescent()[2].scale(70).rotate(70).translate(60, 80).fill_color(&quot;or
 plt.imshow(render_line(*shape.get_trace()(P2(0, np.arange(100)), V2(1, 0))))
 None</code></pre>
 <figure>
-<img src="fullblog_files/fullblog_91_0.png" alt="" /><figcaption>png</figcaption>
+<img src="fullblog_files/fullblog_90_0.png" alt="" /><figcaption>png</figcaption>
 </figure>
 <p>Nice! 10 lines of code and we have a rasterizer. It works pretty nice off the bat. The main problem though is that it doesn’t yet look as good as Cairo’s version. The textbook issue is that we have <em>aliasing</em>. If you zoom into the edge of our moon you will see jagged little edges.</p>
 <p>To make things simple, we’ll apply anti-aliasing on each row independently. This is a 1D simplification but it makes the math much easier.</p>
@@ -703,7 +688,7 @@ plt.plot(samples - 0.2, kernel(0.2), &quot;o-&quot;)
 plt.plot(samples + 0.5, kernel(0.2), &quot;o-&quot;)</code></pre>
 <pre><code>[&lt;matplotlib.lines.Line2D at 0x7bb668e7f860&gt;]</code></pre>
 <figure>
-<img src="fullblog_files/fullblog_100_1.png" alt="" /><figcaption>png</figcaption>
+<img src="fullblog_files/fullblog_99_1.png" alt="" /><figcaption>png</figcaption>
 </figure>
 <pre class="python"><code>@jax.vmap
 def convolve(line):
@@ -714,7 +699,7 @@ def convolve(line):
 plt.imshow(convolve(render_line(*shape.get_trace()(P2(0, np.arange(100)), V2(1, 0)))))
 None</code></pre>
 <figure>
-<img src="fullblog_files/fullblog_101_0.png" alt="" /><figcaption>png</figcaption>
+<img src="fullblog_files/fullblog_100_0.png" alt="" /><figcaption>png</figcaption>
 </figure>
 <p>Now let’s put everything together. There are three steps.</p>
 <ol type="1">
@@ -746,7 +731,7 @@ def render_shape(img, s):
 plt.imshow(render_shape(blank, shape)[0])
 None</code></pre>
 <figure>
-<img src="fullblog_files/fullblog_103_0.png" alt="" /><figcaption>png</figcaption>
+<img src="fullblog_files/fullblog_102_0.png" alt="" /><figcaption>png</figcaption>
 </figure>
 <p>We apply the same process for all the paths.</p>
 <pre class="python"><code>@jax.vmap
@@ -760,7 +745,7 @@ def render_shapes(shapes):
 plt.imshow(render_shapes(make_shape(np.arange(5) / 5)))
 None</code></pre>
 <figure>
-<img src="fullblog_files/fullblog_105_0.png" alt="" /><figcaption>png</figcaption>
+<img src="fullblog_files/fullblog_104_0.png" alt="" /><figcaption>png</figcaption>
 </figure>
 <p>And then just a check that we can render for all transforms.</p>
 <pre class="python"><code>@jax.jit
@@ -1062,8 +1047,7 @@ opt(
     save_every=10,
     rate=0.1,
     verbose=False,
-)
-</code></pre>
+)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
 <img src="out.80.gif" id='ff80'>
@@ -1126,6 +1110,7 @@ new Freezeframe({
 </script>
 <p>All this work brings us to our final goal, rendering an actual image. Here we take an image from the web and convert it to an array. Then we start with a bunch of ellipses (scale-transformed circles) and see how well they can do to approximate it. Results are pretty neat!</p>
 <p>Grab an image from the web and covert to RGB.</p>
+<p><img src="smiley3.webp" /></p>
 <pre class="python"><code>goal = pix
 
 # Draw a bunch of circles.

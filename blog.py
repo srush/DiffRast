@@ -38,7 +38,9 @@ eps = 1e-3
 # %% [markdown]
 # # A Tour of Differentiable Rasterization
 #
-# By [Sasha Rush](https://x.com/srush_nlp)
+# By [Sasha Rush](https://x.com/srush_nlp) 
+#
+# Built with [Chalk](https://github.com/chalk-diagrams/) developed by [Dan Oneață](https://doneata.bitbucket.io/) 
 #
 # Inspired by
 
@@ -97,8 +99,6 @@ new Freezeframe({selector: '#smiley', overlay:true});
 # in a differentiable style (beyond just another boring Transformer).
 #
 # The blog is in 5 parts. It assumes no graphics knowledge, but does use a lot of Jax/NumPy tricks. The target audience is someone with a lot of ML experience who wants to branch out into some more complex uses of derivatives. 
-#
-# You can also just look at the cool pictures!
 #
 # * [Section 1: Transforms, Arcs, Paths](#section-1-transforms-arcs-paths)
 # * [Section 2: Jax x Graphics](#section-2-jax-x-graphics)
@@ -795,7 +795,7 @@ animate(partial(trace, crescent()[1].stroke(), py=-0.2), lw=False)
 # given any shape and ray will compute and draw the trace.
 #
 
-# %%
+# %% tags=["remove_cell"]
 def draw_trace(d, pt, v):
     # Trace the image
     trace = d.get_trace()
@@ -940,7 +940,7 @@ def render_line(splits, mask):
 
     # Set boundaries based on where pixel fell inside.
     scene = scene.at[ind].set(np.where(loc, 0, 1) - inout * (splits - split_int))
-
+    
     # If we didn't end on even, something went wrong.
     return np.where(mask.sum() % 2 == 0, scene, zero)
 
@@ -1389,11 +1389,11 @@ opt(
      edge = Trail.hrule(1)
      return Trail.concat(
         edge.rotate_by((2 * i) / sides) for i in range(sides)
-     ).close().stroke().center_xy().scale(45).rotate_by(x[1]).translate(25 + x[2], 25 + x[3] ).fill_color("orange")
+     ).close().stroke().center_xy().scale(x[0]).rotate_by(x[1]).translate(x[2], x[3] ).fill_color("orange")
+random.seed(1)
 
-
-start_param = np.array([[15.,random.random(),  20 + i * 20, 20 + 20 * j] for i in range(1) for j in range(1)])
-g = np.array([[15., random.random(), 1 + i * 20, 1 + 20 * j] for i in range(1) for j in range(1)])
+start_param = np.array([[35.,random.random(),  40 + i * 20, 40 + 20 * j] for i in range(1) for j in range(1)])
+g = np.array([[35., random.random(), 40 + i * 20, 40 + 20 * j] for i in range(1) for j in range(1)])
 goal_shapes = star(g)
 goal = render_shapes(star(g))
  
@@ -1472,6 +1472,9 @@ pix = np.array(pic.getdata()).reshape(pic.size[0], pic.size[1], 3) / 255
 pix = np.where((pix > 0.8).all(-1)[..., None], 1, pix)
 pix = np.where((pix < 0.2).all(-1)[..., None], 0, pix)
 
+
+# %% [markdown]
+# ![](smiley3.webp)
 
 
 # %%
