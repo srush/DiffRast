@@ -1475,7 +1475,7 @@ pix = np.where((pix < 0.2).all(-1)[..., None], 0, pix)
 
 # %% [markdown]
 # ![](smiley3.webp)
-
+#
 
 # %%
 goal = pix
