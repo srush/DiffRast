@@ -300,6 +300,7 @@ def rotate(t):
 
 
 animate(rotate)
+
 # %% [markdown]
 # We overload the + operator to represent composition.
 # Here two lines are combined in a single image. The first
@@ -1241,6 +1242,10 @@ def boundary_shape(img, s):
 def boundaries(img, shapes):
     return jax.lax.scan(boundary_shape, img, shapes)[0]
 
+# %% [markdown]
+# So now we can try it out.
+
+# %%
 
 @jax.vmap
 def make_shape1(p):
@@ -1255,27 +1260,12 @@ goal_shapes = make_shape1(
     (np.array([[50, 40], [40, 50]]), np.stack([to_color("blue"), to_color("orange")]))
 )
 
-img = render_shapes(goal_shapes)
-img = boundaries(img, goal_shapes)
-plt.imshow(img)
-None
-
-
-# %% [markdown]
-# So now we can try it out.
-#
-#
-
-# %%
-
-# %%
 # Target vector / raster images
 goal_shapes = make_shape1(
     (np.array([[50, 40], [40, 50]]), np.stack([to_color("blue"), to_color("orange")]))
 )
 goal = render_shapes(goal_shapes)
 
-# %%
 # Initial parameters $x$
 start_param = (
     np.array([[60, 30], [60.0, 60.0]]),
@@ -1283,7 +1273,6 @@ start_param = (
 )
 
 
-# %%
 # L2 Loss and draw
 def loss(goal, goal_shapes, x):
     y = render_shapes(x)
@@ -1295,7 +1284,6 @@ def loss(goal, goal_shapes, x):
     ).layout(500)
 
 
-# %%
 opt(
     start_param,
     lambda x: loss(goal, goal_shapes, make_shape1(x)),
@@ -1393,7 +1381,7 @@ opt(
 # %%
 
 # %% [markdown]
-# Finally we can test out shapes the multiple in and out
+# We can also test out shapes the multiple in and out
 # parts likes a star.
 
 
