@@ -38,11 +38,11 @@ eps = 1e-3
 # %% [markdown]
 # # A Tour of Differentiable Rasterization
 #
-# By [Sasha Rush](https://x.com/srush_nlp) 
+# By [Sasha Rush](https://x.com/srush_nlp) - [Notebook](https://github.com/srush/diffRast/)
 #
-# Built with [Chalk](https://github.com/chalk-diagrams/) developed by [Dan Oneață](https://doneata.bitbucket.io/) 
+# Built with [Chalk](https://github.com/chalk-diagrams/) developed with [Dan Oneață](https://doneata.bitbucket.io/) 
 #
-# Inspired by
+# Based on 
 
 # %% [markdown]
 # * [Differentiable Vector Graphics Rasterization for Editing and Learning](https://cseweb.ucsd.edu/~tzli/diffvg/)
