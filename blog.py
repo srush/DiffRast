@@ -39,11 +39,11 @@ eps = 1e-3
 # %% [markdown]
 # # A Tour of Differentiable Rasterization
 #
-# By [Sasha Rush](https://x.com/srush_nlp) - [Notebook](https://github.com/srush/diffRast/)
+# *By [Sasha Rush](https://x.com/srush_nlp) - [Notebook](https://github.com/srush/diffRast/)*
 #
-# Built with [Chalk](https://github.com/chalk-diagrams/) developed with [Dan Oneață](https://doneata.bitbucket.io/) 
+# *Built with [Chalk](https://github.com/chalk-diagrams/) developed with [Dan Oneață](https://doneata.bitbucket.io/)*
 #
-# Based on 
+# *Based on*
 
 # %% [markdown]
 # * [Differentiable Vector Graphics Rasterization for Editing and Learning](https://cseweb.ucsd.edu/~tzli/diffvg/)
@@ -58,8 +58,8 @@ eps = 1e-3
 # %% [markdown]
 # $$\begin{align*}
 #   \text{vector} &= \text{program}(x) \\
-#   \text{image} &= \text{rasterizer}(\text{vector}) \\
-#   {\cal L}(\text{image}, \text{target}) &= \| \text{image} - \text{target} \| \\
+#   \text{im} &= \text{rasterizer}(\text{vector}) \\
+#   {\cal L}(\text{im}, \text{target}) &= \| \text{im} - \text{target} \| \\
 # \end{align*}$$
 
 # %% [markdown]
@@ -67,7 +67,7 @@ eps = 1e-3
 # deep learning frameworks like Jax or PyTorch. The goal of this post is to walk through this calculation.
 
 # %% [markdown]
-# $$\text{Goal:}   \frac{d {\cal L}}{dx} = \frac{d {\cal L}}{d\ \text{image}} \frac{d\ {\text{image}}}{d\ \text{vector}} \frac{d\ \text{vector}}{dx}$$
+# $$\text{Goal:}   \frac{d {\cal L}}{dx} = \frac{d {\cal L}}{d\ \text{im}} \frac{d\ {\text{im}}}{d\ \text{vector}} \frac{d\ \text{vector}}{dx}$$
 #
 
 # %% [markdown]
@@ -91,7 +91,7 @@ new Freezeframe({selector: '#smiley', overlay:true});
 
 
 # %% [markdown]
-# This blog is not really about computer graphic (I don't know much about computer graphics). #
+# This blog is not really about computer graphics (I don't know much about computer graphics). 
 # The goal is to explore *differentiable programming* in realistic settings.
 # If autodiff + vectorization is the future, then it is important to be able to write hard programs
 # in a differentiable style (beyond just another Transformer).
@@ -131,10 +131,11 @@ def animate_out(images, steps=36, rate=20, **kwargs):
     # base = base64.b64encode(open("/tmp/out.gif", 'br').read()).decode('ascii')
     return HTML(
         f"""
-  <div style="text-align:center;"><div style="width:70%; margin:auto;"><img src="animations/out.{ff_id}.gif" id='ff{ff_id}'></div></div>
+  <div style="text-align:center;"><div style="width:90%; margin:auto;"><img src="animations/out.{ff_id}.gif" id='ff{ff_id}'></div></div>
 <script>
 new Freezeframe({{
-  selector: '#ff{ff_id}'  
+  selector: '#ff{ff_id}',
+  overlay: true
 }});
 </script>
 

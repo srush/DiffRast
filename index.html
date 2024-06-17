@@ -25,9 +25,9 @@
 </head>
 <body>
 <h1 id="a-tour-of-differentiable-rasterization">A Tour of Differentiable Rasterization</h1>
-<p>By <a href="https://x.com/srush_nlp">Sasha Rush</a> - <a href="https://github.com/srush/diffRast/">Notebook</a></p>
-<p>Built with <a href="https://github.com/chalk-diagrams/">Chalk</a> developed with <a href="https://doneata.bitbucket.io/">Dan Oneață</a></p>
-<p>Based on</p>
+<p><em>By <a href="https://x.com/srush_nlp">Sasha Rush</a> - <a href="https://github.com/srush/diffRast/">Notebook</a></em></p>
+<p><em>Built with <a href="https://github.com/chalk-diagrams/">Chalk</a> developed with <a href="https://doneata.bitbucket.io/">Dan Oneață</a></em></p>
+<p><em>Based on</em></p>
 <ul>
 <li><a href="https://cseweb.ucsd.edu/~tzli/diffvg/">Differentiable Vector Graphics Rasterization for Editing and Learning</a></li>
 <li><a href="http://kunzhou.net/zjugaps/pathrendering/GPUpathrendering.pdf">Efficient GPU Path Rendering Using Scanline Rasterization</a></li>
@@ -37,11 +37,11 @@
 <p>Given a program that produces a vector representation of an image (think SVG), <em>rasterization</em> turns it into a pixel representation (think PNG). If we have a target image, we can see how close we got.</p>
 <p><span class="math display">\[\begin{align*}
   \text{vector} &amp;= \text{program}(x) \\
-  \text{image} &amp;= \text{rasterizer}(\text{vector}) \\
-  {\cal L}(\text{image}, \text{target}) &amp;= \| \text{image} - \text{target} \| \\
+  \text{im} &amp;= \text{rasterizer}(\text{vector}) \\
+  {\cal L}(\text{im}, \text{target}) &amp;= \| \text{im} - \text{target} \| \\
 \end{align*}\]</span></p>
 <p>Unfortunately this process is not inherently differentiable. Moreover, it doesn’t easily run in modern deep learning frameworks like Jax or PyTorch. The goal of this post is to walk through this calculation.</p>
-<p><span class="math display">\[\text{Goal:}   \frac{d {\cal L}}{dx} = \frac{d {\cal L}}{d\ \text{image}} \frac{d\ {\text{image}}}{d\ \text{vector}} \frac{d\ \text{vector}}{dx}\]</span></p>
+<p><span class="math display">\[\text{Goal:}   \frac{d {\cal L}}{dx} = \frac{d {\cal L}}{d\ \text{im}} \frac{d\ {\text{im}}}{d\ \text{vector}} \frac{d\ \text{vector}}{dx}\]</span></p>
 <p>To make this all more tangible, say we have a target image and a program that can draw ellipses based on their locations, size, and rotation. Differentiable rasterization would let us use gradient descent to adjust the parameters <span class="math inline">\(x\)</span> to match the image.</p>
 <script src="https://unpkg.com/freezeframe/dist/freezeframe.min.js"></script>
 <div>
@@ -53,7 +53,7 @@
 <script>
 new Freezeframe({selector: '#smiley', overlay:true});
 </script>
-<p>This blog is not really about computer graphic (I don’t know much about computer graphics). The goal is to explore <em>differentiable programming</em> in realistic settings. If autodiff + vectorization is the future, then it is important to be able to write hard programs in a differentiable style (beyond just another Transformer).</p>
+<p>This blog is not really about computer graphics (I don’t know much about computer graphics). The goal is to explore <em>differentiable programming</em> in realistic settings. If autodiff + vectorization is the future, then it is important to be able to write hard programs in a differentiable style (beyond just another Transformer).</p>
 <p>The blog is in 5 parts. It assumes no graphics knowledge, but does use a lot of Jax/NumPy tricks. The target audience is someone with a lot of ML experience who wants to branch out into some more complex uses of derivatives.</p>
 <ul>
 <li><a href="#section-1-transforms-arcs-paths">Section 1: Transforms, Arcs, Paths</a></li>
@@ -84,13 +84,14 @@ new Freezeframe({selector: '#smiley', overlay:true});
 
 animate(translate)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.1.gif" id='ff1'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff1'  
+  selector: '#ff1',
+  overlay: true
 });
 </script>
 <p>Scaling transforms use the top left diagonal of the matrix.</p>
@@ -101,13 +102,14 @@ new Freezeframe({
 
 animate(scale)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.2.gif" id='ff2'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff2'  
+  selector: '#ff2',
+  overlay: true
 });
 </script>
 <p>Rotation transforms uses the off-diagonal.</p>
@@ -118,13 +120,14 @@ new Freezeframe({
 
 animate(rotate)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.3.gif" id='ff3'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff3'  
+  selector: '#ff3',
+  overlay: true
 });
 </script>
 <p>In our little library we use <code>+</code> to represent composition of vector diagrams. Here two lines are combined in a single image. The first is rotated and the second is rotated in the opposite direction using the matrix inverse of the transform matrix.</p>
@@ -138,13 +141,14 @@ new Freezeframe({
 
 animate(cat)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.4.gif" id='ff4'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff4'  
+  selector: '#ff4',
+  overlay: true
 });
 </script>
 <p>Colors are also represented mathematically. We use simple RGB vectors.</p>
@@ -159,13 +163,14 @@ new Freezeframe({
 
 animate(color_line)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.5.gif" id='ff5'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff5'  
+  selector: '#ff5',
+  overlay: true
 });
 </script>
 <p>For simplicity, the only function we provide is an <em>arc</em>. Arcs are created by providing a vector offset and the bend height. Note that lines are just arcs with a bend near 0.</p>
@@ -180,13 +185,14 @@ new Freezeframe({
 
 animate(arc)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.6.gif" id='ff6'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff6'  
+  selector: '#ff6',
+  overlay: true
 });
 </script>
 <p>Internally arcs are circles clipped between two angles. We can do this calculation with some (differentiable) <a href="https://observablehq.com/@sarah37/arcs-between-two-points">high-school trigonometry</a>.</p>
@@ -199,13 +205,14 @@ new Freezeframe({
 
 animate(arc, lw=False)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.7.gif" id='ff7'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff7'  
+  selector: '#ff7',
+  overlay: true
 });
 </script>
 <p>We can <em>chain</em> arcs together before stroking them to vector diagrams. We agin use <code>+</code> operator for chaining before closing the path.</p>
@@ -218,13 +225,14 @@ new Freezeframe({
 
 animate(closed)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.8.gif" id='ff8'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff8'  
+  selector: '#ff8',
+  overlay: true
 });
 </script>
 <p>We conclude with a circle function.</p>
@@ -248,13 +256,14 @@ def draw_circle(t):
 
 animate(draw_circle)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.9.gif" id='ff9'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff9'  
+  selector: '#ff9',
+  overlay: true
 });
 </script>
 <h2 id="section-2-jax-x-graphics">Section 2: Jax x Graphics</h2>
@@ -273,13 +282,14 @@ new Freezeframe({
 
 animate(draw)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.10.gif" id='ff10'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff10'  
+  selector: '#ff10',
+  overlay: true
 });
 </script>
 <p>You might have noticed the code above for simple functions is kind of slow. Jax transforms take a little longer to startup, but they automatically let us scale to some very complex figures. Here we are creating 100 circles.</p>
@@ -304,13 +314,14 @@ new Freezeframe({
 
 animate(draw, lw=False, steps=200, rate=5)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.11.gif" id='ff11'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff11'  
+  selector: '#ff11',
+  overlay: true
 });
 </script>
 <p>We can use vmap on multiple arguments simulataneously or even entire trees of parameters. Here is one more fun example taking multiple arguments.</p>
@@ -337,13 +348,14 @@ def multi(t):
 
 animate(jax.jit(multi), steps=10, lw=False)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.12.gif" id='ff12'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff12'  
+  selector: '#ff12',
+  overlay: true
 });
 </script>
 <p>The other core benefit of having Jax is to be able to differentiate functions. Since we are able to take derivatives of all our functions we can use gradient descent to optimize for arbitrary properties.</p>
@@ -366,13 +378,14 @@ def find_point(target, x):
 # Use partial to specify the target. Optimize over x.
 opt(P2(0, 0), partial(find_point, P2(0.5, 0.5)), steps=100, rate=0.1)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.13.gif" id='ff13'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff13'  
+  selector: '#ff13',
+  overlay: true
 });
 </script>
 <p>The two aspects work well together. A <a href="https://en.wikipedia.org/wiki/Force-directed_graph_drawing">force-directed graph</a> is a way to layout a graph in a visually pleasing way in 2D space. The approach for physical forces over the nodes and edges.</p>
@@ -425,13 +438,14 @@ matrix = jax.random.uniform(jax.random.PRNGKey(0), (size, 2)) * 2 - 1
 edges = (np.arange(size) // around) * around
 opt(matrix, partial(force_directed, edges=edges), steps=500)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.14.gif" id='ff14'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff14'  
+  selector: '#ff14',
+  overlay: true
 });
 </script>
 <p>Graphs where each is a ring.</p>
@@ -440,13 +454,14 @@ matrix = jax.random.uniform(jax.random.PRNGKey(0), (size, 2)) * 2 - 1
 edges = (np.arange(size) + 1) % 10 + (np.arange(size) // 10) * 10
 opt(matrix, partial(force_directed, edges=edges), steps=500)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.15.gif" id='ff15'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff15'  
+  selector: '#ff15',
+  overlay: true
 });
 </script>
 <h2 id="section-3-tracing">Section 3: Tracing</h2>
@@ -471,13 +486,14 @@ new Freezeframe({
 shape = circle_at(P2(0, 0), 1).fill_color(&quot;white&quot;)
 animate(partial(ray, shape=shape, pt=P2(0.2, -0.1), v=V2(2, 1)))</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.16.gif" id='ff16'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff16'  
+  selector: '#ff16',
+  overlay: true
 });
 </script>
 <p>Recall that arcs are circle transformed by some <span class="math inline">\(A\)</span> (with an angle range). This implies that the trace function can applying the inverse of this transform <span class="math inline">\(A^{-1}\)</span> to the ray, and calcuting its distance to the unit circle.</p>
@@ -497,13 +513,14 @@ x^2 + y^2 &amp;= 1 \\
 <pre class="python"><code>shape = arc_seg(V2(2, 0), 0.5).stroke().translate(-1, 0)
 animate(partial(ray, shape=shape, pt=P2(0.2, 0.3), v=V2(1, -1)))</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.17.gif" id='ff17'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff17'  
+  selector: '#ff17',
+  overlay: true
 });
 </script>
 <p>Note that there may be multiple intersections between the ray and the shape. This means trace needs to return a set of values. Working with sets is difficult in languages like Jax because array size needs to remain constant in repeated calls to a function. To handle this issue we return a fixed size array with a mask.</p>
@@ -545,38 +562,41 @@ def crescent():
 
 animate(partial(satelite, crescent()[2]), lw=False)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.18.gif" id='ff18'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff18'  
+  selector: '#ff18',
+  overlay: true
 });
 </script>
 <p>Internally, we are storing all the arcs that make up a path. each of these is reset to the unit circle where we then apply a ray-circle formula to find possible intersections.</p>
 <p>Arc 1</p>
 <pre class="python"><code>animate(partial(satelite, crescent()[0].stroke()), lw=False)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.19.gif" id='ff19'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff19'  
+  selector: '#ff19',
+  overlay: true
 });
 </script>
 <p>Arc 2.</p>
 <pre class="python"><code>animate(partial(satelite, crescent()[1].stroke(), py=-0.2), lw=False)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.20.gif" id='ff20'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff20'  
+  selector: '#ff20',
+  overlay: true
 });
 </script>
 <p>Now here’s the cool part. Because all of these traces are computed with using differentiable transformations (Section 1), and they are in Jax (Section 2), we can optimize through them. Here we set up a function that given any shape and ray will compute and draw the trace.</p>
@@ -594,13 +614,14 @@ new Freezeframe({
 
 opt(np.array(np.pi / 4.0), partial(trace_width, crescent()[2]), rate=0.1)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.21.gif" id='ff21'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff21'  
+  selector: '#ff21',
+  overlay: true
 });
 </script>
 <h2 id="section-4-vector---image">Section 4: Vector -&gt; Image</h2>
@@ -618,13 +639,14 @@ new Freezeframe({
 shape = crescent()[2].scale(7).rotate(70).translate(6, 8).fill_color(&quot;orange&quot;)
 animate(partial(scanline, shape=shape), grid=hgrid, steps=90)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.22.gif" id='ff22'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff22'  
+  selector: '#ff22',
+  overlay: true
 });
 </script>
 <p>Here’s the critical rasterization code. This function produces 1 row of the image given the trace for that row. Its job:</p>
@@ -752,7 +774,7 @@ def kernel(offset):
 plt.plot(samples, kernel(0), &quot;o-&quot;)
 plt.plot(samples - 0.2, kernel(0.2), &quot;o-&quot;)
 plt.plot(samples + 0.5, kernel(0.5), &quot;o-&quot;)</code></pre>
-<pre><code>[&lt;matplotlib.lines.Line2D at 0x79264c142660&gt;]</code></pre>
+<pre><code>[&lt;matplotlib.lines.Line2D at 0x74204423f4a0&gt;]</code></pre>
 <figure>
 <img src="fullblog_files/fullblog_90_1.png" alt="" /><figcaption>png</figcaption>
 </figure>
@@ -829,13 +851,14 @@ for t in range(T):
 
 animate_out(sorted(glob.glob(&quot;/tmp/test.*.png&quot;)))</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.23.gif" id='ff23'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff23'  
+  selector: '#ff23',
+  overlay: true
 });
 </script>
 <pre><code>&lt;Figure size 640x480 with 0 Axes&gt;</code></pre>
@@ -851,13 +874,14 @@ def loss(x):
 
 opt(to_color(&quot;blue&quot;), lambda x: loss(make_shape(x)), rate=0.1)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.24.gif" id='ff24'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff24'  
+  selector: '#ff24',
+  overlay: true
 });
 </script>
 <h2 id="section-5-differentiable-rasterization">Section 5: Differentiable Rasterization</h2>
@@ -884,13 +908,14 @@ def loss(x):
 
 opt(to_color(&quot;orange&quot;), lambda x: loss(make_shape(x)), rate=0.1)</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.25.gif" id='ff25'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff25'  
+  selector: '#ff25',
+  overlay: true
 });
 </script>
 <p>The problem is that we are never sending a derivative back through the <code>split</code> variable to the traces, i.e. <span class="math inline">\(\frac{d {\cal L}}{d \ \text{trace}}=0\)</span> That is because the only way split is used is as a discrete index into the array.</p>
@@ -1007,13 +1032,14 @@ opt(
     rate=0.1,
 )</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
-<img src="animations/out.32.gif" id='ff32'>
+<div style="width:90%; margin:auto;">
+<img src="animations/out.26.gif" id='ff26'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff32'  
+  selector: '#ff26',
+  overlay: true
 });
 </script>
 <h3 id="example-2-paths">Example 2: Paths</h3>
@@ -1048,13 +1074,14 @@ opt(
     rate=0.01,
 )</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.27.gif" id='ff27'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff27'  
+  selector: '#ff27',
+  overlay: true
 });
 </script>
 <h3 id="example-3-multiple-overlapping-shapes">Example 3: Multiple Overlapping Shapes</h3>
@@ -1100,13 +1127,14 @@ opt(
     rate=0.1,
 )</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.28.gif" id='ff28'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff28'  
+  selector: '#ff28',
+  overlay: true
 });
 </script>
 <h3 id="example-4-shapes-with-gaps">Example 4: Shapes with Gaps</h3>
@@ -1134,13 +1162,14 @@ opt(
     verbose=False,
 )</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.29.gif" id='ff29'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff29'  
+  selector: '#ff29',
+  overlay: true
 });
 </script>
 <h3 id="example-5-multiple-geometric-angles">Example 5: Multiple Geometric Angles</h3>
@@ -1185,13 +1214,14 @@ opt(
     rate=0.05
 )</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
-<img src="animations/out.36.gif" id='ff36'>
+<div style="width:90%; margin:auto;">
+<img src="animations/out.30.gif" id='ff30'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff36'  
+  selector: '#ff30',
+  overlay: true
 });
 </script>
 <h3 id="example-6-real-image">Example 6: Real Image</h3>
@@ -1262,13 +1292,14 @@ opt(
     rate=0.1,
 )</code></pre>
 <div style="text-align:center;">
-<div style="width:70%; margin:auto;">
+<div style="width:90%; margin:auto;">
 <img src="animations/out.31.gif" id='ff31'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff31'  
+  selector: '#ff31',
+  overlay: true
 });
 </script>
 <h2 id="conclusion">Conclusion</h2>
