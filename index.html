@@ -34,11 +34,11 @@
 <li><a href="https://core.ac.uk/download/pdf/76383233.pdf">Monoids: Theme and Variations</a></li>
 <li><a href="https://jax.readthedocs.io/en/latest/">JAX: High-Performance Array Computing</a></li>
 </ul>
-<p>Given a program that produces a vector representation of an image (think SVG), <em>rasterization</em> turns it into a pixel representation (think PNG). If we have a image we can see how close we got.</p>
+<p>Given a program that produces a vector representation of an image (think SVG), <em>rasterization</em> turns it into a pixel representation (think PNG). If we have a target image, we can see how close we got.</p>
 <p><span class="math display">\[\begin{align*}
   \text{vector} &amp;= \text{program}(x) \\
-  \text{image} &amp;= \text{rasterizer}(x) \\
-  {\cal L}(\text{png}, \text{target}) &amp;= \| \text{image} - \text{target} \| \\
+  \text{image} &amp;= \text{rasterizer}(\text{vector}) \\
+  {\cal L}(\text{image}, \text{target}) &amp;= \| \text{image} - \text{target} \| \\
 \end{align*}\]</span></p>
 <p>Unfortunately this process is not inherently differentiable. Moreover, it doesn’t easily run in modern deep learning frameworks like Jax or PyTorch. The goal of this post is to walk through this calculation.</p>
 <p><span class="math display">\[\text{Goal:}   \frac{d {\cal L}}{dx} = \frac{d {\cal L}}{d\ \text{image}} \frac{d\ {\text{image}}}{d\ \text{vector}} \frac{d\ \text{vector}}{dx}\]</span></p>
@@ -53,31 +53,29 @@
 <script>
 new Freezeframe({selector: '#smiley', overlay:true});
 </script>
-<p>The goal of this blog is not about computer graphics. Caveat: I know nothing about computer graphics.</p>
-<p>The goal of this blog is to learn about differentiable programming in realistic settings. If autodiff + vectorization is the future, then it is important to be able to write hard programs in a differentiable style (beyond just another boring Transformer).</p>
+<p>This blog is not really about computer graphic (I don’t know much about computer graphics). # The goal is to explore <em>differentiable programming</em> in realistic settings. If autodiff + vectorization is the future, then it is important to be able to write hard programs in a differentiable style (beyond just another Transformer).</p>
 <p>The blog is in 5 parts. It assumes no graphics knowledge, but does use a lot of Jax/NumPy tricks. The target audience is someone with a lot of ML experience who wants to branch out into some more complex uses of derivatives.</p>
 <ul>
 <li><a href="#section-1-transforms-arcs-paths">Section 1: Transforms, Arcs, Paths</a></li>
 <li><a href="#section-2-jax-x-graphics">Section 2: Jax x Graphics</a></li>
-<li><a href="section-3-tracing">Section 3: Tracing</a></li>
-<li><a href="section-4-vector---image">Section 4: Vector -&gt; Image</a></li>
-<li><a href="section-5-differentiable-rasterization">Section 5: Differentiable Rasterization</a></li>
+<li><a href="#section-3-tracing">Section 3: Tracing</a></li>
+<li><a href="#section-4-vector---image">Section 4: Vector -&gt; Image</a></li>
+<li><a href="#section-5-differentiable-rasterization">Section 5: Differentiable Rasterization</a></li>
 </ul>
 <h2 id="section-1-transforms-arcs-paths">Section 1: Transforms, Arcs, Paths</h2>
-<p>The first stage is to get to a vector graphics specification. That is,</p>
+<p>This section is about vector graphics and linear algebra. We want to be able to represent a vector graphic as a function of parameters using matrices.</p>
 <p><span class="math display">\[\begin{align*}
   \text{vector} &amp;= \text{program}(x) \\
 \end{align*}
 \]</span></p>
-<p>To arrive here, we need to convince ourselves that this process is fully differentiable and expressible in Jax. This will also allow us to introduce the basic primitives of vector graphics.</p>
-<h3 id="transforms">Transforms</h3>
-<p>A <em>transform</em> is an affine function of a 2D point. Given a point <span class="math inline">\((x, y)\)</span>, we produce a point <span class="math inline">\((x&#39;, y&#39;)\)</span> where <span class="math inline">\(x&#39; = a x + b y + c\)</span> and <span class="math inline">\(y&#39; = d x + e y + f\)</span>. This will allow us to mathematically represent intuitive notions of scaling, rotation, and translation.</p>
+<p>To arrive here, we need to convince ourselves that this process is fully differentiable and expressible in NumPy. This will also allow us to introduce the basic primitives of vector graphics.</p>
+<p>We start with a <em>transform</em>. This is an affine function of a 2D point. Given a point <span class="math inline">\((x, y)\)</span>, we produce a point <span class="math inline">\((x&#39;, y&#39;)\)</span> where <span class="math inline">\(x&#39; = a x + b y + c\)</span> and <span class="math inline">\(y&#39; = d x + e y + f\)</span>. This will allow us to mathematically represent intuitive notions of scaling, rotation, and translation.</p>
 <p>We can represent these affine functions as a 3x3 matrices. <span class="math display">\[\begin{align*}
 \begin{bmatrix} x&#39; \\ y&#39; \\ 1 \end{bmatrix} &amp;= \begin{bmatrix} a &amp; b &amp; c \\ d &amp; e &amp; f \\ 0 &amp; 0 &amp; 1 \end{bmatrix} \begin{bmatrix} x \\ y \\ 1 \end{bmatrix} \\
 \end{align*}\]</span> The key trick being to represent 2D points in 3D with a fixed 1 in the last position. We can the apply transforms to points, lines, shapes, or other transforms etc. As these are standard matrix operations, they naturally have meaningful derivatives, which autodiff can provide for us.</p>
 <p>We start by applying them to a simple line.</p>
 <pre class="python"><code>line = arc_seg(V2(1, 1), 1e-3).stroke()</code></pre>
-<p>Translations have an identity scaling and use the last column for the offet. We show the transform on the right side.</p>
+<p>Translations have an identity scaling and use the last column for the offet. We show the current transform matrix on the right side.</p>
 <pre class="python"><code>def translate(t: float):
     &quot;t is a float between 0 and 1&quot;
     affine = tx.translation(V2(0, t))
@@ -87,7 +85,7 @@ new Freezeframe({selector: '#smiley', overlay:true});
 animate(translate)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.1.gif" id='ff1'>
+<img src="animations/out.1.gif" id='ff1'>
 </div>
 </div>
 <script>
@@ -95,7 +93,7 @@ new Freezeframe({
   selector: '#ff1'  
 });
 </script>
-<p>Scaling uses the diagonal.</p>
+<p>Scaling transforms use the top left diagonal of the matrix.</p>
 <pre class="python"><code>def scale(t):
     affine = tx.scale(t)
     return line.apply_transform(affine), show_affine(affine)
@@ -104,7 +102,7 @@ new Freezeframe({
 animate(scale)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.2.gif" id='ff2'>
+<img src="animations/out.2.gif" id='ff2'>
 </div>
 </div>
 <script>
@@ -112,7 +110,7 @@ new Freezeframe({
   selector: '#ff2'  
 });
 </script>
-<p>Rotation uses the off-diagonal.</p>
+<p>Rotation transforms uses the off-diagonal.</p>
 <pre class="python"><code>def rotate(t):
     affine = tx.rotation(t * 2 * np.pi)
     return line.apply_transform(affine), show_affine(affine)
@@ -121,7 +119,7 @@ new Freezeframe({
 animate(rotate)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.3.gif" id='ff3'>
+<img src="animations/out.3.gif" id='ff3'>
 </div>
 </div>
 <script>
@@ -129,7 +127,7 @@ new Freezeframe({
   selector: '#ff3'  
 });
 </script>
-<p>We overload the + operator to represent composition. Here two lines are combined in a single image. The first is rotated and the second is rotated in the opposite direction using the inverse of the transform.</p>
+<p>In our little library we use <code>+</code> to represent composition of vector diagrams. Here two lines are combined in a single image. The first is rotated and the second is rotated in the opposite direction using the matrix inverse of the transform matrix.</p>
 <pre class="python"><code>def cat(t):
     affine = tx.rotation(t * 2 * np.pi)
     affine2 = tx.inv(affine)
@@ -141,7 +139,7 @@ new Freezeframe({
 animate(cat)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.4.gif" id='ff4'>
+<img src="animations/out.4.gif" id='ff4'>
 </div>
 </div>
 <script>
@@ -149,9 +147,10 @@ new Freezeframe({
   selector: '#ff4'  
 });
 </script>
-<p>Colors are also represented as vectors and can be combined.</p>
+<p>Colors are also represented mathematically. We use simple RGB vectors.</p>
 <p><span class="math display">\[ \text{color} = \begin{bmatrix} r \\ g \\ b \end{bmatrix}\]</span></p>
 <pre class="python"><code>def color_line(t):
+    # Helper function for standard colors. 
     red = to_color(&quot;red&quot;)
     blue = to_color(&quot;blue&quot;)
     color = t * red + (1 - t) * blue
@@ -161,7 +160,7 @@ new Freezeframe({
 animate(color_line)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.5.gif" id='ff5'>
+<img src="animations/out.5.gif" id='ff5'>
 </div>
 </div>
 <script>
@@ -169,18 +168,20 @@ new Freezeframe({
   selector: '#ff5'  
 });
 </script>
-<h3 id="arcs-and-shapes">Arcs and Shapes</h3>
-<p>The only drawing primitive we will provide is an <em>arc</em>. Arcs are created by providing a vector offset and the bend height. Here’s what that does.</p>
+<p>For simplicity, the only function we provide is an <em>arc</em>. Arcs are created by providing a vector offset and the bend height. Note that lines are just arcs with a bend near 0.</p>
 <pre class="python"><code>def arc(t):
+    # End position of the arc.
     v = V2(1, 0)
+    # Create an arc from (0, 0) to v with bend t.
     a_s = arc_seg(v, t)
+    # Stroke turns an arc into a vector diagram. 
     return a_s.stroke()
 
 
 animate(arc)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.6.gif" id='ff6'>
+<img src="animations/out.6.gif" id='ff6'>
 </div>
 </div>
 <script>
@@ -188,7 +189,8 @@ new Freezeframe({
   selector: '#ff6'  
 });
 </script>
-<p>These values are converted internally to an implicit circle using some (differentiable) high-school trigonometry. We store the radius of this circle, the start angle, and the offset. Here is what these arcs look like by composing the arc and the internal circle representation.</p>
+<p>Internally arcs are circles clipped between two angles. We can do this calculation with some (differentiable) <a href="https://observablehq.com/@sarah37/arcs-between-two-points">high-school trigonometry</a>.</p>
+<p>Here is what these arcs look like by composing the arc and the internal circle representation.</p>
 <pre class="python"><code>def arc(t):
     v = V2(1, 0)
     a_s = arc_seg(v, t)
@@ -198,7 +200,7 @@ new Freezeframe({
 animate(arc, lw=False)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.7.gif" id='ff7'>
+<img src="animations/out.7.gif" id='ff7'>
 </div>
 </div>
 <script>
@@ -206,8 +208,9 @@ new Freezeframe({
   selector: '#ff7'  
 });
 </script>
-<p>We can chain arcs together, again using the overloaded <code>+</code> operator to make a <em>path</em>. Paths can be closed to indicate a filled shape. Filled paths made with chained arcs will be the core element we work with.</p>
-<p>(Note chaining must be done before calling <code>stroke()</code> since <code>+</code> is also used for composition.)</p>
+<p>We can <em>chain</em> arcs together before stroking them to vector diagrams. We agin use <code>+</code> operator for chaining before closing the path.</p>
+<p>(Note that <code>+</code> is used both for chaining and composition. This is because both of <a href="https://core.ac.uk/download/pdf/76383233.pdf">monoids</a> and so they share internal structure. This can be point of confusion though.)</p>
+<p>Filled paths made with chained arcs will be the core element we work with.</p>
 <pre class="python"><code>def closed(t):
     v = V2(1, 0)
     return (arc_seg(v, t) + arc_seg(-v, -0.2)).close().stroke()
@@ -216,7 +219,7 @@ new Freezeframe({
 animate(closed)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.8.gif" id='ff8'>
+<img src="animations/out.8.gif" id='ff8'>
 </div>
 </div>
 <script>
@@ -224,7 +227,12 @@ new Freezeframe({
   selector: '#ff8'  
 });
 </script>
-<p>We can put everything together to create a circle function.</p>
+<p>We conclude with a circle function.</p>
+<ol type="1">
+<li>Create a path by chaining two arcs together.</li>
+<li>Create a transform that centers the circle, scales it, and moves it.</li>
+<li>Apply the transform to the circle.</li>
+</ol>
 <pre class="python"><code>def circle_at(p, r):
     &quot;Draw a circle at `p` with radius `r`&quot;
     # Draw a circle with radius 1 centered at (0, 1)
@@ -241,7 +249,7 @@ def draw_circle(t):
 animate(draw_circle)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.9.gif" id='ff9'>
+<img src="animations/out.9.gif" id='ff9'>
 </div>
 </div>
 <script>
@@ -250,22 +258,23 @@ new Freezeframe({
 });
 </script>
 <h2 id="section-2-jax-x-graphics">Section 2: Jax x Graphics</h2>
-<p>Since the math underlying these primitives is in NumPy, we can use Jax to work with them. The key requirement is that the paths be made up of NumPy arrays and are composed with Jax <a href="https://jax.readthedocs.io/en/latest/pytrees.html">PyTrees</a>.</p>
-<p>The downside of Jax is that we will not be able to use a lot of standard python functions, and will have to write everything in a strick functional style without <code>if's</code>. This will make later things harder.</p>
-<p>But there are several really nice benefits that Jax provides. The first is that we can use Jax’s <a href="https://jax.readthedocs.io/en/latest/_autosummary/jax.vmap.html">vmap</a> function transform to create many paths at once. For example here we are using <code>vmap</code> to create 10 circles.</p>
-<p>(Note as well that we are using shortcut <code>scale_x</code> which creates and applies a scaling affine transform.)</p>
+<p>This section is about Jax, a library for differentiable programming. Jax is built on top of NumPy so it works directly with NumPy arrays you probably are used to. Basically python dataclass that is made up of NumPy arrays can be utilized withing the Jax framework. The key thing to note is that our vector diagrams are <a href="https://jax.readthedocs.io/en/latest/pytrees.html">Jax PyTrees</a>.</p>
+<p>The downside of Jax is that we will not be able to use a lot of standard python functions, and will have to write everything in a strict functional style without <code>if's</code>. This will make later things harder.</p>
+<p>But there are upsides. In this section we will discuss the use of <em>vmap</em>, which allows us to automatically vectorize functions, and <em>grad</em> which will allow us to compute derivatives are arbitrary functions. # Let’s start with <a href="https://jax.readthedocs.io/en/latest/_autosummary/jax.vmap.html">vmap</a>. This function will allow us to easily create complex vector diagrams, by describing many different paths at once. For example here we are using <code>vmap</code> to create 10 circles.</p>
+<p>(Note from here on out we use simpler methods like <code>scale_x</code> instead of manually creating affine matrices. Hopefully they are self-explanatory)</p>
 <pre class="python"><code>def draw(t):
     @jax.vmap
     def multi(i):
+        &quot;Draw a circle with radius using `i`.&quot;
         return circle_at(P2(0, 0), (0.05 * i + t)).scale_x(1.2).fill_opacity(0)
 
+    # Create 9 circles with i from 1 to 9.
     return multi(np.arange(1, 10))
-
 
 animate(draw)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.10.gif" id='ff10'>
+<img src="animations/out.10.gif" id='ff10'>
 </div>
 </div>
 <script>
@@ -273,7 +282,7 @@ new Freezeframe({
   selector: '#ff10'  
 });
 </script>
-<p>Jax transforms take a little longer to startup, but they automatically let us scale to some very complex figures. Here we are creating 100 circles.</p>
+<p>You might have noticed the code above for simple functions is kind of slow. Jax transforms take a little longer to startup, but they automatically let us scale to some very complex figures. Here we are creating 100 circles.</p>
 <pre class="python"><code>def draw(t):
     red = to_color(&quot;red&quot;)
     green = to_color(&quot;green&quot;)
@@ -296,7 +305,7 @@ new Freezeframe({
 animate(draw, lw=False, steps=200, rate=5)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.11.gif" id='ff11'>
+<img src="animations/out.11.gif" id='ff11'>
 </div>
 </div>
 <script>
@@ -304,7 +313,7 @@ new Freezeframe({
   selector: '#ff11'  
 });
 </script>
-<p>This one is a really neat pinwheel effect. Here we are using <code>vmap</code> with multiple arguments. Later we will use <code>vmap</code> with a whole tree of parameters.</p>
+<p>We can use vmap on multiple arguments simulataneously or even entire trees of parameters. Here is one more fun example taking multiple arguments.</p>
 <pre class="python"><code>T = 100
 
 
@@ -329,7 +338,7 @@ def multi(t):
 animate(jax.jit(multi), steps=10, lw=False)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.12.gif" id='ff12'>
+<img src="animations/out.12.gif" id='ff12'>
 </div>
 </div>
 <script>
@@ -337,7 +346,11 @@ new Freezeframe({
   selector: '#ff12'  
 });
 </script>
-<p>The other core benefit of having Jax is to be able to differentiate functions. Since we are able to take derivatives of all our functions we can use gradient descent to optimize for arbitrary properties. We’ll introduce a function <code>opt</code> that uses Adam to optimize and draw an arbitrary function.</p>
+<p>The other core benefit of having Jax is to be able to differentiate functions. Since we are able to take derivatives of all our functions we can use gradient descent to optimize for arbitrary properties.</p>
+<p>We’ll introduce a function <code>opt</code> that uses <a href="https://optax.readthedocs.io/en/latest/api/optimizers.html#optax.adam">Adam</a> to optimize and draw an arbitrary function. Our optimization uses unconstrained optimization with<br />
+a starting point and a function <code>f</code>, and draws the intermediate vector diagrams.</p>
+<p><span class="math display">\[\arg\min_{x} f(x)\]</span></p>
+<p>There are more interesting optimizers we could apply here, but we’ll keep it simple for now.</p>
 <pre class="python"><code>def L2(x):
     return (x * x).sum(-1)
 
@@ -354,7 +367,7 @@ def find_point(target, x):
 opt(P2(0, 0), partial(find_point, P2(0.5, 0.5)), steps=100, rate=0.1)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.13.gif" id='ff13'>
+<img src="animations/out.13.gif" id='ff13'>
 </div>
 </div>
 <script>
@@ -362,16 +375,16 @@ new Freezeframe({
   selector: '#ff13'  
 });
 </script>
-<p>Okay that one was pretty simple. Let’s try something a little more complex that uses all our tricks so far.</p>
-<p>A <a href="https://en.wikipedia.org/wiki/Force-directed_graph_drawing">force-directed graph</a> is a way to layout a graph in a visually pleasing way in 2D space. The main idea is to apply (and optimize for) physical forces over the nodes and edges.</p>
-<p>In our example code we will use three forces. A spring along edges, repulsion between all nodes, and a weak gravity towards the center of the graph.</p>
+<p>The two aspects work well together. A <a href="https://en.wikipedia.org/wiki/Force-directed_graph_drawing">force-directed graph</a> is a way to layout a graph in a visually pleasing way in 2D space. The approach for physical forces over the nodes and edges.</p>
+<p>In this function we use three forces. A spring along edges, repulsion between all nodes, and a weak gravity towards the center of the graph.</p>
 <pre class="python"><code>@jax.jit
 def force_directed(x, edges, a=1 / 20, b=1 / 10, c=50, spring=0.04):
-    # Draw nodes
     size = x.shape[0]
     nodes = np.arange(size)
+    # Colors for nodes
     color = np.stack([to_color(c) for c in Color(&quot;red&quot;).range_to(&quot;blue&quot;, size)])
 
+    # Draw nodes and calculate node forces
     @jax.vmap
     def dots(p, i, color):
         d = circle(0.1).translate(p[0], p[1]).fill_color(color)
@@ -379,6 +392,7 @@ def force_directed(x, edges, a=1 / 20, b=1 / 10, c=50, spring=0.04):
 
     out, gravity = dots(x, np.arange(size), color)
 
+    # Draw nodes and calculate edge forces
     @jax.vmap
     def connect(inp, out):
         a, b = x[inp], x[out]
@@ -387,7 +401,7 @@ def force_directed(x, edges, a=1 / 20, b=1 / 10, c=50, spring=0.04):
 
     lines, tension = connect(nodes, edges)
 
-    # Style
+    # Style and compose graph.
     out = out.with_envelope(empty()).line_width(2)
     # `with_envelope` speeds up rendering, `rectangle` is a helper for paths
     out = (
@@ -396,14 +410,14 @@ def force_directed(x, edges, a=1 / 20, b=1 / 10, c=50, spring=0.04):
         + out
     )
 
-    # Forces
-    # Repulse everyone but ourselves
+
+    # Apply forces
     repulse = ((1 / (1e-3 + L2(x[:, None] - x))) * (1 - np.eye(size))).sum()
 
     score = a * gravity.sum() + b * repulse + c * L2(tension - spring)
 
     return score, out.layout(500)</code></pre>
-<p>Make a graph of little clusters</p>
+<p>Graphs where there is a single hub and several surrounding nodes.</p>
 <pre class="python"><code>size = 50
 around = 5
 groups = size // around
@@ -412,7 +426,7 @@ edges = (np.arange(size) // around) * around
 opt(matrix, partial(force_directed, edges=edges), steps=500)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.14.gif" id='ff14'>
+<img src="animations/out.14.gif" id='ff14'>
 </div>
 </div>
 <script>
@@ -420,14 +434,14 @@ new Freezeframe({
   selector: '#ff14'  
 });
 </script>
-<p>Make a graph of little rings</p>
+<p>Graphs where each is a ring.</p>
 <pre class="python"><code>size = 100
 matrix = jax.random.uniform(jax.random.PRNGKey(0), (size, 2)) * 2 - 1
 edges = (np.arange(size) + 1) % 10 + (np.arange(size) // 10) * 10
 opt(matrix, partial(force_directed, edges=edges), steps=500)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.15.gif" id='ff15'>
+<img src="animations/out.15.gif" id='ff15'>
 </div>
 </div>
 <script>
@@ -436,22 +450,29 @@ new Freezeframe({
 });
 </script>
 <h2 id="section-3-tracing">Section 3: Tracing</h2>
-<p>Now we are going to put everything together by combining optimization and graphics. The key idea is that if we use Jax to layout paths, we can optimize based on the result of that layout. To do this, we need a differentiable way to check where different paths ended up.</p>
-<p>We represent this information through the <em>trace</em> function for each path. A trace function takes in a point and a direction (a <em>ray</em>) and returns a set of lengths at which that ray hits the path. That is sufficient information to tell us the specific points of intersection.</p>
-<p>This is more clear in an animation.</p>
+<p>Up until this point we have been entirely focused on the compute the vector diagram from its parameters.</p>
+<p><span class="math display">\[\begin{align*}
+  \text{vector} &amp;= \text{program}(x) \\
+\end{align*}\]</span></p>
+<p>This section considers the problem of extracting information from the vector diagram.</p>
+<p><span class="math display">\[\begin{align*}
+  \text{output} &amp;= g(\text{vector}) \\
+\end{align*}\]</span></p>
+<p>Vector diagrams are complex, but we will only need once piece of information, which is known as a <em>trace</em>. We will use the trace to to query information about the the vector diagram..</p>
+<p>A trace is a function takes in a point and a direction (a <em>ray</em>) and returns a set of distances at which the ray hits the vector diagram. This is more clear in an animation.</p>
 <pre class="python"><code>def ray(t, shape, pt, v):
     ray = seg(v).stroke().scale(t + 0.1).translate_by(pt) + circle_at(pt, 0.1)
     trace = shape.get_trace()
     # Length to hit shape.
-    s, m = trace(pt, v)
-    return shape + ray + circle_at(np.max(s) * v + pt, 0.1).fill_color(&quot;red&quot;)
+    distances, mask = trace(pt, v)
+    return shape + ray + circle_at(np.max(distances) * v + pt, 0.1).fill_color(&quot;red&quot;)
 
 
 shape = circle_at(P2(0, 0), 1).fill_color(&quot;white&quot;)
 animate(partial(ray, shape=shape, pt=P2(0.2, -0.1), v=V2(2, 1)))</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.16.gif" id='ff16'>
+<img src="animations/out.16.gif" id='ff16'>
 </div>
 </div>
 <script>
@@ -459,8 +480,8 @@ new Freezeframe({
   selector: '#ff16'  
 });
 </script>
-<p>Recall from above that arcs are just angles on a unit circle transformed by <span class="math inline">\(A\)</span>. This implies that the trace can be calculated by applying the inverse of this transform <span class="math inline">\(A^{-1}\)</span> to the ray, and calcuting its distance to the unit circle.</p>
-<p>The formula for this calculation is to find a common point on the ray and the unit circle. Let’s do some algebra. Let <span class="math inline">\(r\)</span> be the length of the trace.</p>
+<p>Recall that arcs are circle transformed by some <span class="math inline">\(A\)</span> (with an angle range). This implies that the trace function can applying the inverse of this transform <span class="math inline">\(A^{-1}\)</span> to the ray, and calcuting its distance to the unit circle.</p>
+<p>To calculate this value we need to do some high-school algebra. The formula for this calculation is to find a common point on the ray and the unit circle. Let <span class="math inline">\(r\)</span> be the length of the trace.</p>
 <p><span class="math display">\[ \begin{align*}
 x = v_x r + p_x &amp; y = v_y r + p_y \\
 x^2 + y^2 &amp;= 1 \\
@@ -472,13 +493,12 @@ x^2 + y^2 &amp;= 1 \\
 <p><span class="math display">\[\begin{align*}
 \frac{-b \pm \sqrt{b^2 - 4a c}}{2a}
 \end{align*}\]</span></p>
-<p>The two values correspond to the two possible intersections. Negative values correspond to missing the circle. Once we find the value, we can also compute the angle of the intersection <span class="math inline">\(r (p + v)\)</span> and check if it is within the arc.</p>
-<p>We can use this with any point, shape, and vector.</p>
+<p>The two values correspond to the two possible intersections. Negative roots correspond to missing the circle entirely. Once we find the value, we can also compute the angle of the intersection and check if it is within the arc.</p>
 <pre class="python"><code>shape = arc_seg(V2(2, 0), 0.5).stroke().translate(-1, 0)
 animate(partial(ray, shape=shape, pt=P2(0.2, 0.3), v=V2(1, -1)))</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.17.gif" id='ff17'>
+<img src="animations/out.17.gif" id='ff17'>
 </div>
 </div>
 <script>
@@ -488,42 +508,45 @@ new Freezeframe({
 </script>
 <p>Note that there may be multiple intersections between the ray and the shape. This means trace needs to return a set of values. Working with sets is difficult in languages like Jax because array size needs to remain constant in repeated calls to a function. To handle this issue we return a fixed size array with a mask.</p>
 <p>Here’s an example that shows multiple intersections, as well as use of complex affine transformations.</p>
-<pre class="python"><code>def crescent():
-    part1 = arc_seg(unit_x, 0.5)
-    part2 = arc_seg(-unit_x, -0.2)
-    return part1, part2, (part1 + part2).close().stroke()
+<pre class="python"><code>
+def draw_line(p1, p2):
+    &quot;Helper function to draw a line between two points.&quot;
+    return Path.from_points([p2, p1 + eps]).stroke()
 
+def draw_trace(diagram, pt, v):
+    &quot;Draw a trace of a vector diagram.&quot;
+    trace = diagram.get_trace()
+    distances, mask = trace(pt, v)
 
-def trace(d, t, px=0, py=0):
+    # Draw the raw and trace.
+    line = seg(V2(0, -1 / 2)).stroke()
+    out = (diagram + draw_line(pt, pt+v) + circle_at(pt, 0.1).fill_color(&quot;white&quot;)).line_width(2)
+    pos = (1 - mask[:, :])[..., None, None] * 100 + distances[..., None, None] * v + pt
+    out = out + draw_line(pos[:, 0], pos[:, 1]).line_color(
+        &quot;white&quot;
+    ).line_width(10)
+    for i in range(distances.shape[1]):
+        out = out + circle_at(pos[:, i], 0.1).fill_color(&quot;red&quot;).line_width(1 * mask[:, i]).fill_opacity(mask[:, i])
+    return out, distances
+
+def satelite(d, t, px=0, py=0):
     # Place the ray
     d = d.center_xy()
     affine = tx.rotation(t * 2 * np.pi)
     pt, v = P2(0, 1.5), V2(0, -1.5)
     pt, v = affine @ pt + V2(px, py), affine @ v
 
-    # Trace gives distance to arcs
-    trace = d.get_trace()
-    p, m = trace(pt, v)
+    return draw_trace(d, pt, v)[0]
 
-    # Draw
-    line = seg(V2(0, -1 / 2)).stroke()
-    out = (
-        d
-        + line.apply_transform(tx.translation(pt) @ affine)
-        + circle_at(pt, 0.1).fill_color(&quot;white&quot;)
-    )
-    out = out.line_width(2)
-    for i in range(p.shape[1]):
-        out = out + circle_at(p[:, i] * v + pt, 0.1).fill_color(&quot;red&quot;).fill_opacity(
-            m[:, i]
-        ).line_width(m[:, i])
-    return out
+def crescent():
+    part1 = arc_seg(unit_x, 0.5)
+    part2 = arc_seg(-unit_x, -0.2)
+    return part1, part2, (part1 + part2).close().stroke()
 
-
-animate(partial(trace, crescent()[2]), lw=False)</code></pre>
+animate(partial(satelite, crescent()[2]), lw=False)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.18.gif" id='ff18'>
+<img src="animations/out.18.gif" id='ff18'>
 </div>
 </div>
 <script>
@@ -533,10 +556,10 @@ new Freezeframe({
 </script>
 <p>Internally, we are storing all the arcs that make up a path. each of these is reset to the unit circle where we then apply a ray-circle formula to find possible intersections.</p>
 <p>Arc 1</p>
-<pre class="python"><code>animate(partial(trace, crescent()[0].stroke()), lw=False)</code></pre>
+<pre class="python"><code>animate(partial(satelite, crescent()[0].stroke()), lw=False)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.19.gif" id='ff19'>
+<img src="animations/out.19.gif" id='ff19'>
 </div>
 </div>
 <script>
@@ -545,10 +568,10 @@ new Freezeframe({
 });
 </script>
 <p>Arc 2.</p>
-<pre class="python"><code>animate(partial(trace, crescent()[1].stroke(), py=-0.2), lw=False)</code></pre>
+<pre class="python"><code>animate(partial(satelite, crescent()[1].stroke(), py=-0.2), lw=False)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.20.gif" id='ff20'>
+<img src="animations/out.20.gif" id='ff20'>
 </div>
 </div>
 <script>
@@ -556,8 +579,8 @@ new Freezeframe({
   selector: '#ff20'  
 });
 </script>
-<p>Now here’s the cool part. Because all of these traces are computed with jax using differentiable transformations, we can combine them with our generic gradient optimizer. Here we set up a function that given any shape and ray will compute and draw the trace.</p>
-<p>Using this function, we can then optimize for trace properties. Here search for the outer angle that leads to the largest trace. this can just be done with the standard optimizer from the last section.</p>
+<p>Now here’s the cool part. Because all of these traces are computed with using differentiable transformations (Section 1), and they are in Jax (Section 2), we can optimize through them. Here we set up a function that given any shape and ray will compute and draw the trace.</p>
+<p>Using this function, we can then optimize for trace properties. Here we search for the outer angle that leads to the smallest gap between trace distances.</p>
 <pre class="python"><code>def trace_width(d, t):
     d = d.center_xy()
     # Outer satelite
@@ -566,14 +589,13 @@ new Freezeframe({
 
     # Trace the image
     out, p = draw_trace(d, pt, v)
-    score = p[:, 1] - p[:, 0]
-    return score.sum(), (grid + out.line_width(1)).layout(500)
+    score = (p[:, 1] - p[:, 0])
+    return score.sum(), (grid + out.with_envelope(empty())).layout(500)
 
-
-opt(np.array(np.pi / 4.0), partial(trace_width, crescent()[2]), rate=0.05)</code></pre>
+opt(np.array(np.pi / 4.0), partial(trace_width, crescent()[2]), rate=0.1)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.21.gif" id='ff21'>
+<img src="animations/out.21.gif" id='ff21'>
 </div>
 </div>
 <script>
@@ -582,18 +604,22 @@ new Freezeframe({
 });
 </script>
 <h2 id="section-4-vector---image">Section 4: Vector -&gt; Image</h2>
-<p>Now that we have a trace function, we are going to use it to do rasterization, i.e. converting from vector paths to a visible image, specifical a height <span class="math inline">\(\times\)</span> width <span class="math inline">\(\times\)</span> color array.</p>
-<p>Haven’t we been doing this all along though? Well kind of. We have been cheating under the hood and using Cairo an open-source rasterizer. We want to do it ourself.</p>
-<p>To do rasterization, we will use a simple <a href=""><em>scanline</em></a> algorithm. The algorithm simply walks down each row one pixel at a time, runs a trace, and then fills in the middles. To make things even simpler we will use an <em>even-odd</em> rule where we consider all pixels after an <em>odd</em> intersection to be inside the path.</p>
+<p><em>Rasterization</em> is the process of converting from a vector diagram to a visible image, specifical a height <span class="math inline">\(\times\)</span> width <span class="math inline">\(\times\)</span> color array. In our formula it represents this step.</p>
+<p><span class="math display">\[\begin{align*}
+  \text{image} &amp;= \text{rasterize}(\text{vector}) \\
+\end{align*}\]</span></p>
+<p>Haven’t we been doing this all along though? Well kind of. We have been cheating under the hood and using <a href="https://www.cairographics.org/">Cairo</a> an open-source rasterizer. We would like to do it ourself in Jax.</p>
+<p>To do rasterization, we will use a <a href="https://en.wikipedia.org/wiki/Scanline_rendering"><em>Scanline</em></a> algorithm. We are choosing this approach because it is relatively simple compared to other methods. We are motivated by the paper <a href="http://kunzhou.net/zjugaps/pathrendering/GPUpathrendering.pdf">Efficient GPU Path Rendering Using Scanline Rasterization</a> which describes approaches for running this algorithm on GPUs.</p>
+<p>The algorithm works by walking down each row one pixel at a time, runs a trace, and then fills in the middles. We will use an <em>even-odd</em> rule for rasterizing where we consider all pixels after every other intersection to be inside.</p>
 <pre class="python"><code>def scanline(t, shape):
     return draw_trace(shape, P2(1, 1 + 10 * t), V2(1, 0))[0]
 
 
 shape = crescent()[2].scale(7).rotate(70).translate(6, 8).fill_color(&quot;orange&quot;)
-animate(partial(scanline, shape=shape), grid=hgrid, steps=100)</code></pre>
+animate(partial(scanline, shape=shape), grid=hgrid, steps=90)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.22.gif" id='ff22'>
+<img src="animations/out.22.gif" id='ff22'>
 </div>
 </div>
 <script>
@@ -607,24 +633,49 @@ new Freezeframe({
 <li>Determine boundary pixels</li>
 <li>Be as fast as possible</li>
 </ul>
-<p>Here’s how you would do this in simple python.</p>
-<pre class="python"><code>for j in columns:
-   even = True
-   for mask, split in zip(mask, splits):
-       if not mask:
-           splits_int[floor(split)] = split
-   if j in splits_int:
-       split = split_int[j]
-       if even:
-           scene[j] = 1 - (split - j)
+<p>Here’s how you would do this in simple python. We use the term split to mean the distance of the trace from the left-hand side of the picture. Mask is 1 if a split is real and 0 if it is not.</p>
+<pre class="python"><code>
+def render_line_python(splits, mask):
+    import math
+    splits_int = {}
+    even = True
+    
+    # Discretize each split to its pixel cell.
+    for mask, split in zip(mask, splits):
+       if mask:
+           splits_int[math.floor(split)] = split
+
+    # Create a blank row. 
+    scene = [0] * 100   
+
+    for j in range(100):
+       if j in splits_int:
+           split = splits_int[j]
+            # Set boundaries based on where pixel fell inside.
+           if even:
+               scene[j] = 1 - (split - j)
+           else:
+               scene[j] = split - j
+
+            # Compute the even / odd position of each split
+           even = not even
        else:
-           scene[j] = split - j
-       even = not even
-   else:
-       if odd:
-           scene[j] = 1</code></pre>
+           if not even:
+                # Fill in inside.
+               scene[j] = 1
+    return np.array(scene)
+
+render_line_python([3.4, 9.7, 16.9], [1, 1, 0])</code></pre>
+<pre><code>Array([0. , 0. , 0. , 0.6, 1. , 1. , 1. , 1. , 1. , 0.7, 0. , 0. , 0. ,
+       0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+       0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+       0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+       0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+       0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+       0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+       0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ], dtype=float64)</code></pre>
 <p>It’s a relatively simple algorithm, but remember we can’t use conditionals, mutation, or dictionaries in Jax. And we want it to run in parallel!</p>
-<p>We will instead use an approach of scanline rendering targeting GPUs. The trick will be to first mark where we cross a boundary and then use a <em>cumulative sum</em> to combine them together. This all can be done in parallel. Here’s the code.</p>
+<p>We will instead modify this approach to do scanline rendering in parallel. The trick will be to first mark where we cross a boundary and then use a <em>cumulative sum</em> to combine them together. Here’s the same algorithm in Jax.</p>
 <pre class="python"><code>SIZE = 100
 blank = np.ones((SIZE, SIZE, 3))
 
@@ -659,21 +710,36 @@ def render_line(splits, mask):
     return np.where(mask.sum() % 2 == 0, scene, zero)
 
 
-shape = crescent()[2].scale(70).rotate(70).translate(60, 80).fill_color(&quot;orange&quot;)
+render_line(np.array([[3.4, 9.7, 16.9]]), np.array([[1, 1, 0]]))</code></pre>
+<pre><code>Array([[0. , 0. , 0. , 0.6, 1. , 1. , 1. , 1. , 1. , 0.7, 0. , 0. , 0. ,
+        0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+        0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+        0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+        0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+        0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+        0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ,
+        0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. ]], dtype=float64)</code></pre>
+<pre class="python"><code>shape = crescent()[2].scale(70).rotate(70).translate(60, 80).fill_color(&quot;orange&quot;)
 plt.imshow(render_line(*shape.get_trace()(P2(0, np.arange(100)), V2(1, 0))))
 None</code></pre>
 <figure>
-<img src="fullblog_files/fullblog_90_0.png" alt="" /><figcaption>png</figcaption>
+<img src="fullblog_files/fullblog_81_0.png" alt="" /><figcaption>png</figcaption>
 </figure>
 <p>Nice! 10 lines of code and we have a rasterizer. It works pretty nice off the bat. The main problem though is that it doesn’t yet look as good as Cairo’s version. The textbook issue is that we have <em>aliasing</em>. If you zoom into the edge of our moon you will see jagged little edges.</p>
-<p>To make things simple, we’ll apply anti-aliasing on each row independently. This is a 1D simplification but it makes the math much easier.</p>
+<p>We’ll apply convolution smoothing on each row independently. The idea is to set the value of each pixel based on the surrounding values from the vector diagram. This is a 1D simplification but it makes the math much easier. The formula is,</p>
 <p><span class="math display">\[I(x) = \int k(u) f(x- u; \theta) du\]</span></p>
-<p>Where <span class="math inline">\(f(x-u)\)</span> is the value of the line our vector image, <span class="math inline">\(k(x)\)</span> is our kernel, and <span class="math inline">\(I(x)\)</span> is our output image. The <em>kernel</em> is just a function that weights the contribution to the pixel based on how far away <span class="math inline">\(u\)</span> is.</p>
+<p>Where <span class="math inline">\(f(x-u)\)</span> is the value of the line our vector image, <span class="math inline">\(k(x)\)</span> is a <em>kernel</em>, and <span class="math inline">\(I(x)\)</span> is our output image. The <em>kernel</em> is just a function that weights the contribution of neighbors based on how far away they are.</p>
 <p>We can approximate this integral with Monte-Carlo sampling.</p>
 <p><span class="math display">\[ I(x) \approx \frac{1}{N} \sum_i k(u_i) f(x - u_i)  \]</span></p>
 <p>Where <span class="math inline">\(u_i\)</span> are <span class="math inline">\(N\)</span> chosen points around <span class="math inline">\(x\)</span>.</p>
-<p>We’ll use a triangle kernel where the weight decays linearly from the center. To avoid randomness, we’ll always separate the points in a 1D Line. You can think of this a just applying a 1D convolution to each row of the image.</p>
-<pre class="python"><code>kern = 11
+<p>We have two choices here: the kernel function and the monte-carlo scheme.</p>
+<ul>
+<li>We’ll use a triangle kernel where the weight decays linearly from the center.</li>
+<li>To avoid randomness, we’ll always separate the points in a 1D Line.</li>
+</ul>
+<p>From an ML perspective, you can think of this a just applying a 1D convolution to each row of the image with a predefined kernel.</p>
+<pre class="python"><code># Kernel width
+kern = 11
 samples = np.arange(kern) - (kern // 2)
 
 
@@ -682,14 +748,15 @@ def kernel(offset):
     kernel = kern - np.abs(off_samples)
     return np.maximum(0, kernel / (kern - np.abs(samples)).sum())
 
-# Allow us to offset the grid
+# Allow us to offset the grid. 
 plt.plot(samples, kernel(0), &quot;o-&quot;)
 plt.plot(samples - 0.2, kernel(0.2), &quot;o-&quot;)
-plt.plot(samples + 0.5, kernel(0.2), &quot;o-&quot;)</code></pre>
-<pre><code>[&lt;matplotlib.lines.Line2D at 0x7bb668e7f860&gt;]</code></pre>
+plt.plot(samples + 0.5, kernel(0.5), &quot;o-&quot;)</code></pre>
+<pre><code>[&lt;matplotlib.lines.Line2D at 0x79264c142660&gt;]</code></pre>
 <figure>
-<img src="fullblog_files/fullblog_99_1.png" alt="" /><figcaption>png</figcaption>
+<img src="fullblog_files/fullblog_90_1.png" alt="" /><figcaption>png</figcaption>
 </figure>
+<p>Compare the new image to the original. Note the little “hairs” that come off on both sides. These will become important in the next section.</p>
 <pre class="python"><code>@jax.vmap
 def convolve(line):
     k = kernel(0)
@@ -699,7 +766,7 @@ def convolve(line):
 plt.imshow(convolve(render_line(*shape.get_trace()(P2(0, np.arange(100)), V2(1, 0)))))
 None</code></pre>
 <figure>
-<img src="fullblog_files/fullblog_100_0.png" alt="" /><figcaption>png</figcaption>
+<img src="fullblog_files/fullblog_92_0.png" alt="" /><figcaption>png</figcaption>
 </figure>
 <p>Now let’s put everything together. There are three steps.</p>
 <ol type="1">
@@ -721,7 +788,7 @@ def render_shape(img, s):
         raster = render_line(*trace(tx.to_point(pt * S[:, None, None]), v))
         # 2. Apply a 1d conv
         raster = convolve(raster)
-        # 3. compose
+        # 3. Compose
         img = (1 - raster[..., None]) * img + raster[..., None] * s.style.fill_color_
         return np.swapaxes(img, 0, 1), raster
 
@@ -731,9 +798,9 @@ def render_shape(img, s):
 plt.imshow(render_shape(blank, shape)[0])
 None</code></pre>
 <figure>
-<img src="fullblog_files/fullblog_102_0.png" alt="" /><figcaption>png</figcaption>
+<img src="fullblog_files/fullblog_94_0.png" alt="" /><figcaption>png</figcaption>
 </figure>
-<p>We apply the same process for all the paths.</p>
+<p>We apply the same process for all the parts of our diagram.</p>
 <pre class="python"><code>@jax.vmap
 def make_shape(i):
     r, g = to_color(&quot;red&quot;), to_color(&quot;green&quot;)
@@ -745,7 +812,7 @@ def render_shapes(shapes):
 plt.imshow(render_shapes(make_shape(np.arange(5) / 5)))
 None</code></pre>
 <figure>
-<img src="fullblog_files/fullblog_104_0.png" alt="" /><figcaption>png</figcaption>
+<img src="fullblog_files/fullblog_96_0.png" alt="" /><figcaption>png</figcaption>
 </figure>
 <p>And then just a check that we can render for all transforms.</p>
 <pre class="python"><code>@jax.jit
@@ -763,16 +830,16 @@ for t in range(T):
 animate_out(sorted(glob.glob(&quot;/tmp/test.*.png&quot;)))</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.74.gif" id='ff74'>
+<img src="animations/out.23.gif" id='ff23'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff74'  
+  selector: '#ff23'  
 });
 </script>
 <pre><code>&lt;Figure size 640x480 with 0 Axes&gt;</code></pre>
-<p>Now we can do our end-to-end optimization. We need to specify a goal target image, and then render our own guess. Here we start with a blue image and target an orange one. We then optimize through the process to find the color.</p>
+<p>This rasterizer is fully end-to-end. This now allows use to Now we can do our first optimization.We need to specify a goal target image, and then render our own guess. Here we start with a blue image and target an orange one. We then optimize through the process (using derivatives) to find the color.</p>
 <pre class="python"><code>goal = render_shape(blank, shape)[0]
 
 def make_shape(color):
@@ -785,16 +852,23 @@ def loss(x):
 opt(to_color(&quot;blue&quot;), lambda x: loss(make_shape(x)), rate=0.1)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.75.gif" id='ff75'>
+<img src="animations/out.24.gif" id='ff24'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff75'  
+  selector: '#ff24'  
 });
 </script>
 <h2 id="section-5-differentiable-rasterization">Section 5: Differentiable Rasterization</h2>
-<p>Changing the color is neat, but unfortunately if the images didn’t line up exactly things go wrong. The problem is that a key step in our rasterization has a derivative of zero. Take a look at the <code>render_line</code> code and see if you can spot it.</p>
+<p>In this section we complete the full pipeline, and differentiate through both steps.</p>
+<p><span class="math display">\[\begin{align*}
+  \text{vector} &amp;= \text{program}(x) \\
+  \text{image} &amp;= \text{rasterizer}(\text{vector}) \\
+  {\cal L}(\text{image}, \text{target}) &amp;= \| \text{image} - \text{target} \| \\
+\end{align*}\]</span></p>
+<p>In fact, the last example shows we can do this already. We make a vector diagram, rasterize it and then just optimize.</p>
+<p>Unfortunately though if the images didn’t line up exactly things go wrong. The problem is that a key step in our rasterization has a derivative of zero. Take a look at the <code>render_line</code> code and see if you can spot it.</p>
 <pre class="python"><code>new_shape = shape.translate(15, 35)
 goal = render_shape(blank, new_shape)[0]
 
@@ -811,27 +885,32 @@ def loss(x):
 opt(to_color(&quot;orange&quot;), lambda x: loss(make_shape(x)), rate=0.1)</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.76.gif" id='ff76'>
+<img src="animations/out.25.gif" id='ff25'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff76'  
+  selector: '#ff25'  
 });
 </script>
 <p>The problem is that we are never sending a derivative back through the <code>split</code> variable to the traces, i.e. <span class="math inline">\(\frac{d {\cal L}}{d \ \text{trace}}=0\)</span> That is because the only way split is used is as a discrete index into the array.</p>
-<p>There isn’t an trivial way to fix this through scan. The trick instead is to take advantage of the anti-aliasing step. Recall the formula for applying the kernel.</p>
+<p>To do step, we are going to have to find a workaround.</p>
+<p><a href="https://cseweb.ucsd.edu/~tzli/diffvg/">Differentiable Vector Graphics Rasterization for Editing and Learning</a> describes an elegant method for producing derivatives. We’ll use a simplified version here which demonstrates the core idea.</p>
+<p>The trick is to take advantage of the anti-aliasing step. Recall the formula,</p>
 <p><span class="math display">\[I(x) = \int k(u) f(x- u) du\]</span></p>
 <p>We would like to take the derivative of this function with respect to the trace.</p>
 <p><span class="math display">\[\frac{d}{d \ \text{trace}} \int k(u) f(x- u) du\]</span></p>
-<p>But where is the trace in this function? We can think about it as partitioning the integral into <em>inside</em> and <em>outside</em> parts. We call each of these regions <span class="math inline">\(A_i\)</span>.</p>
+<p>But where is the trace in this function? It is used to produce the splits, i.e. the <em>inside</em> and <em>outside</em> parts where <span class="math inline">\(f\)</span> changes. We call each of these independent regions <span class="math inline">\(A_i\)</span>.</p>
 <p><span class="math display">\[\sum_i \frac{d}{d \ \text{trace}} \int_{A_i} f(x-u) k(u) du\]</span></p>
-<p>The trace does impact <span class="math inline">\(k\)</span> only the boundary of the integral. To optimize positioning we need a signal from this boundary position. The methodology for differentiating through integral boundaries is a standard identity called Leibniz’s integral rule.</p>
-<p><span class="math display">\[\frac{d}{db} \int_{0}^{b} z(t) dt = z(b) + \int_{0}^{b} \frac{d z(x)}{d b} dx\]</span></p>
-<p>The second part is the integral with a path. We have taken care of the already just naturally through our convolution above. The first part though we need to handle ourselves. For our simplified problem this takes a nice form.</p>
+<p>These intersection points does impact where the <em>boundary</em> of the integral is. To optimize positioning we need a signal from this boundary position.</p>
+<p>The methodology for differentiating through integral boundaries is an identity called <a href="https://en.wikipedia.org/wiki/Leibniz_integral_rule">Leibniz’s integral rule</a>.</p>
+<p><span class="math display">\[\frac{d}{db} \int_{0}^{b} z(t, b) dt = z(b, b) + \int_{0}^{b} \frac{d z(t, b)}{d b} dt\]</span></p>
+<p>The second part is just within the boundaries. We have taken care of the already just naturally through our convolution above. This is why the color-match optimization works already.</p>
+<p>The first part though we need to handle ourselves. For our simplified problem this takes a nice form since <span class="math inline">\(z(b, b) = f(x - \text{split})k(\text{split})\)</span>.</p>
 <p><span class="math display">\[f(x-\text{split}) k(\text{split}) \approx (f(x-\text{split} + \epsilon) - f(x-\text{split} - \epsilon))k(\text{split})\]</span></p>
-<p>Where the approximation is necessary because by definition <span class="math inline">\(f(x - \text{split})\)</span> falls on a boundary point. Intuitively the math is just telling us to move boundaries closer/farther to targets proportional to their kernel value.</p>
-<p>Here’s how to implement this in Jax.</p>
+<p>Where the approximation here is necessary because by definition <span class="math inline">\(f(x - \text{split})\)</span> falls directly on a boundary point. Intuitively the math is just telling us to move boundaries closer/farther to targets proportional to their kernel value.</p>
+<p>Since to implement backprop we need, <span class="math display">\[\frac{d L}{d I} \frac{d I}{d \text{trace}}\]</span></p>
+<p>The term <span class="math inline">\(\frac{d L}{d I}\)</span> is the size of the image, so the implementation looks like applying the reverse of the triangle kernel from above to each around of the split points to this array.</p>
 <pre class="python"><code>@jax.custom_vjp
 def boundary(scene, splits, mask):
     &quot;Do nothing on the forward pass.&quot;
@@ -849,14 +928,16 @@ def f_bwd(res, g):
     split_int = np.floor(splits).astype(int)
 
     def grad_p(s, s_off):
-        &quot;Compute the kernel values of neights around this point&quot;
+        &quot;Compute the kernel values of neighbors around this point&quot;
         off = s_off - s
-        # Chain rule part.
+        # Chain rule part, g is dL / dI. Apply kernel around split s. 
         v = g[s + samples]
         return (v * (f[s + 1] - f[s - 1])).sum(-1) @ kernel(off)
 
-    # For each split.
+    # For each split compute dL/dI
     r = jax.vmap(grad_p, in_axes=(-1, -1))(split_int, splits) * mask
+    r = np.where(mask.sum() % 2 == 0, r, np.zeros(splits.shape))
+    
     return g, -r, None
 
 boundary.defvjp(f_fwd, f_bwd)</code></pre>
@@ -878,9 +959,10 @@ def boundary_shape(img, s):
 
 def boundaries(img, shapes):
     return jax.lax.scan(boundary_shape, img, shapes)[0]</code></pre>
-<p>So now we can try it out.</p>
-<pre class="python"><code>
-@jax.vmap
+<p>And that’s it! We have a differentiable rasterizer. A bit of work, but only really one custom derivative and the rest we got from the framework for free.</p>
+<h3 id="example-1-occlusion">Example 1: Occlusion</h3>
+<p>This first one shows we can deal with occulusion and multiple shapes for free.</p>
+<pre class="python"><code>@jax.vmap
 def make_shape1(p):
     loc, color = p
     return (
@@ -926,15 +1008,16 @@ opt(
 )</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.77.gif" id='ff77'>
+<img src="animations/out.32.gif" id='ff32'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff77'  
+  selector: '#ff32'  
 });
 </script>
-<p>Here’s a more complex example where we draw a blob shape and let it fill in. In Jax you can vmap over any sort of tree structure.</p>
+<h3 id="example-2-paths">Example 2: Paths</h3>
+<p>This one parameterizes the structure of the arcs that make up the path.</p>
 <pre class="python"><code>@jax.vmap
 def make_shape2(params):
     s, l, r = params
@@ -966,16 +1049,17 @@ opt(
 )</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.78.gif" id='ff78'>
+<img src="animations/out.27.gif" id='ff27'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff78'  
+  selector: '#ff27'  
 });
 </script>
-<p>In this example we create a bunch or red and blue circles and then try to fill them in.</p>
-<pre class="python"><code>import random
+<h3 id="example-3-multiple-overlapping-shapes">Example 3: Multiple Overlapping Shapes</h3>
+<p>In this example we create a bunch or red and blue circles with vmap and then try to fill them in.</p>
+<pre class="python"><code>
 
 
 @jax.vmap
@@ -1017,26 +1101,27 @@ opt(
 )</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.79.gif" id='ff79'>
+<img src="animations/out.28.gif" id='ff28'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff79'  
+  selector: '#ff28'  
 });
 </script>
-<p>We can also test out shapes the multiple in and out parts likes a star.</p>
+<h3 id="example-4-shapes-with-gaps">Example 4: Shapes with Gaps</h3>
+<p>In this exmaple we render a star with a gap in the middle to test the inside/outside aspect of the renderer.</p>
 <pre class="python"><code> @jax.vmap
  def star(x):
      sides = 5
      edge = Trail.hrule(1)
      return Trail.concat(
         edge.rotate_by((2 * i) / sides) for i in range(sides)
-     ).close().stroke().center_xy().scale(x[0]).rotate_by(x[1]).translate(x[2], x[3] ).fill_color(&quot;orange&quot;)
+     ).close().stroke().center_xy().scale(x[0]).rotate(x[1]).translate(x[2], x[3] ).fill_color(&quot;orange&quot;)
 random.seed(1)
 
-start_param = np.array([[35.,random.random(),  40 + i * 20, 40 + 20 * j] for i in range(1) for j in range(1)])
-g = np.array([[35., random.random(), 40 + i * 20, 40 + 20 * j] for i in range(1) for j in range(1)])
+start_param = np.array([[65.,random.random(),  40 + i * 20, 40 + 20 * j] for i in range(1) for j in range(1)])
+g = np.array([[85., 50, 50 + i * 20, 50 + 20 * j] for i in range(1) for j in range(1)])
 goal_shapes = star(g)
 goal = render_shapes(star(g))
  
@@ -1044,22 +1129,24 @@ opt(
     start_param,
     lambda x: loss(goal, goal_shapes, star(x)),
     steps=500,
-    save_every=10,
-    rate=0.1,
+    save_every=2,
+    rate=0.35,
     verbose=False,
 )</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.80.gif" id='ff80'>
+<img src="animations/out.29.gif" id='ff29'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff80'  
+  selector: '#ff29'  
 });
 </script>
+<h3 id="example-5-multiple-geometric-angles">Example 5: Multiple Geometric Angles</h3>
+<p>In this exmaple we render a set of gears that need to fit together.</p>
 <pre class="python"><code>@jax.vmap
-def star(x):
+def gear(x):
     sides = 5
     edge = Trail.hrule(1)
     return (
@@ -1087,27 +1174,27 @@ g = np.array(
         for j in range(3)
     ]
 )
-goal_shapes = star(g)
-goal = render_shapes(star(g))
+goal_shapes = gear(g)
+goal = render_shapes(gear(g))
 
 opt(
     start_param,
-    lambda x: loss(goal, goal_shapes, star(x)),
+    lambda x: loss(goal, goal_shapes, gear(x)),
     steps=500,
     save_every=2,
-    rate=0.05,
-    verbose=False,
+    rate=0.05
 )</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.81.gif" id='ff81'>
+<img src="animations/out.36.gif" id='ff36'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff81'  
+  selector: '#ff36'  
 });
 </script>
+<h3 id="example-6-real-image">Example 6: Real Image</h3>
 <p>All this work brings us to our final goal, rendering an actual image. Here we take an image from the web and convert it to an array. Then we start with a bunch of ellipses (scale-transformed circles) and see how well they can do to approximate it. Results are pretty neat!</p>
 <p>Grab an image from the web and covert to RGB.</p>
 <p><img src="smiley3.webp" /></p>
@@ -1176,12 +1263,12 @@ opt(
 )</code></pre>
 <div style="text-align:center;">
 <div style="width:70%; margin:auto;">
-<img src="out.82.gif" id='ff82'>
+<img src="animations/out.31.gif" id='ff31'>
 </div>
 </div>
 <script>
 new Freezeframe({
-  selector: '#ff82'  
+  selector: '#ff31'  
 });
 </script>
 <h2 id="conclusion">Conclusion</h2>
