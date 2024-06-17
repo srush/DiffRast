@@ -5,8 +5,8 @@ img {
     height: auto;
 }
 
-p {
-    font-size: 1.1em;
+p, ol, ul {
+    font-size: 1.2em;
 
 }
 
