@@ -1,9 +1,10 @@
 img {
 
-    max-width: 90%;
+    max-width: 80%;
     height: auto;
     margin-left: auto;
     margin-right: auto;
+    display: block;
 
 }
 
